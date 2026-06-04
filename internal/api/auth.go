@@ -72,6 +72,13 @@ func (s *SessionStore) Delete(token string) {
 	s.mu.Unlock()
 }
 
+// ClearAll invalidates all active sessions.
+func (s *SessionStore) ClearAll() {
+	s.mu.Lock()
+	s.sessions = make(map[string]time.Time)
+	s.mu.Unlock()
+}
+
 // randomToken generates 32 cryptographically random bytes and returns a base64-encoded string.
 func randomToken() (string, error) {
 	b := make([]byte, 32)
@@ -97,32 +104,33 @@ func generatePassword() (string, error) {
 
 // EnsureAdmin checks if an admin config exists in the database. If not, it
 // generates a random password, hashes it with bcrypt, and stores it. The
-// plaintext password is printed to stdout.
-func EnsureAdmin(d *db.DB) error {
+// plaintext password is printed to stdout. Returns the plaintext password on
+// first creation, or an empty string if admin already existed.
+func EnsureAdmin(d *db.DB) (string, error) {
 	cfg, err := d.GetAdmin()
 	if err != nil {
-		return fmt.Errorf("get admin config: %w", err)
+		return "", fmt.Errorf("get admin config: %w", err)
 	}
 	if cfg != nil {
-		return nil
+		return "", nil
 	}
 
 	password, err := generatePassword()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	hash, err := crypto.HashPassword(password)
 	if err != nil {
-		return fmt.Errorf("hash password: %w", err)
+		return "", fmt.Errorf("hash password: %w", err)
 	}
 
 	if err := d.SetAdmin(&db.AdminConfig{PasswordHash: hash}); err != nil {
-		return fmt.Errorf("set admin config: %w", err)
+		return "", fmt.Errorf("set admin config: %w", err)
 	}
 
 	fmt.Printf("Admin password generated: %s\n", password)
-	return nil
+	return password, nil
 }
 
 // LoginHandler handles POST /api/login.

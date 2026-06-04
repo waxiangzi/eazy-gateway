@@ -81,3 +81,18 @@ func (db *DB) ListKeys() ([]*Key, error) {
 	})
 	return keys, err
 }
+
+// UpdateKey updates an existing key by ID. Returns an error if the key does not exist.
+func (db *DB) UpdateKey(k *Key) error {
+	return db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketKeys)
+		if b.Get([]byte(k.ID)) == nil {
+			return fmt.Errorf("key %q not found", k.ID)
+		}
+		data, err := json.Marshal(k)
+		if err != nil {
+			return fmt.Errorf("marshal key: %w", err)
+		}
+		return b.Put([]byte(k.ID), data)
+	})
+}

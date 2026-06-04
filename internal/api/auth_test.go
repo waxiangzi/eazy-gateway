@@ -416,7 +416,7 @@ func TestEnsureAdmin_AlreadyExists(t *testing.T) {
 	}
 
 	// Should not error or overwrite
-	if err := EnsureAdmin(d); err != nil {
+	if _, err := EnsureAdmin(d); err != nil {
 		t.Fatalf("EnsureAdmin: %v", err)
 	}
 
@@ -439,7 +439,7 @@ func TestEnsureAdmin_GeneratesPassword(t *testing.T) {
 	defer d.Close()
 
 	// Capture stdout
-	if err := EnsureAdmin(d); err != nil {
+	if _, err := EnsureAdmin(d); err != nil {
 		t.Fatalf("EnsureAdmin: %v", err)
 	}
 
