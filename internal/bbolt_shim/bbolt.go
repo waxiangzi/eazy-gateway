@@ -16,17 +16,17 @@ import (
 
 // DB represents a database. It wraps a JSON file storing bucket data.
 type DB struct {
-	path     string
-	mu       sync.RWMutex
-	buckets  map[string]map[string][]byte
-	closed   bool
+	path    string
+	mu      sync.RWMutex
+	buckets map[string]map[string][]byte
+	closed  bool
 }
 
 // Tx represents a read-only or read-write transaction.
 type Tx struct {
-	db        *DB
-	writable  bool
-	buckets   map[string]map[string][]byte
+	db       *DB
+	writable bool
+	buckets  map[string]map[string][]byte
 }
 
 // Bucket represents a collection of key-value pairs.

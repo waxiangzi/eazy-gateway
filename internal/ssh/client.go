@@ -9,6 +9,7 @@ package ssh
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"strconv"
 	"time"
@@ -87,8 +88,7 @@ func Connect(config *Config, keyPEM []byte) (*ssh.Client, error) {
 	// SECURITY WARNING: host key verification is disabled per project
 	// guardrail. This accepts any server host key, which is vulnerable to
 	// man-in-the-middle attacks. See InsecureIgnoreHostKey usage below.
-	fmt.Printf("[ssh] WARNING: host key verification disabled (InsecureIgnoreHostKey) for tunnel %q -> %s\n",
-		config.ID, config.addr())
+	slog.Warn("host key verification disabled (InsecureIgnoreHostKey)", "tunnel", config.ID, "addr", config.addr())
 
 	clientConfig := &ssh.ClientConfig{
 		User: config.SSHUser,
@@ -100,13 +100,13 @@ func Connect(config *Config, keyPEM []byte) (*ssh.Client, error) {
 	}
 
 	addr := config.addr()
-	fmt.Printf("[ssh] dialing tunnel %q (%s) as user %q\n", config.ID, addr, config.SSHUser)
+	slog.Info("dialing tunnel", "tunnel", config.ID, "addr", addr, "user", config.SSHUser)
 
 	client, err := ssh.Dial("tcp", addr, clientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("ssh connect: dial %s: %w", addr, err)
 	}
 
-	fmt.Printf("[ssh] connected tunnel %q (%s)\n", config.ID, addr)
+	slog.Info("connected tunnel", "tunnel", config.ID, "addr", addr)
 	return client, nil
 }

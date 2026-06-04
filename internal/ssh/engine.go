@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -167,7 +168,7 @@ func (e *TunnelEngine) Start(tunnelID string) error {
 	if err != nil {
 		t.setStatus(StatusError)
 		cancel() // nothing waits on it yet, but keep the context tidy.
-		fmt.Printf("[ssh] tunnel %q initial connect failed: %v\n", tunnelID, err)
+		slog.Error("initial connect failed", "tunnel", tunnelID, "error", err)
 		return fmt.Errorf("ssh engine: start tunnel %q: %w", tunnelID, err)
 	}
 
@@ -199,7 +200,7 @@ func (e *TunnelEngine) Stop(tunnelID string) error {
 	delete(e.tunnels, tunnelID)
 	e.mu.Unlock()
 
-	fmt.Printf("[ssh] stopping tunnel %q\n", tunnelID)
+	slog.Info("stopping tunnel", "tunnel", tunnelID)
 
 	// Signal the supervisor to stop, then wait for it to exit before closing
 	// the client so there is no concurrent access to t.client. Forwarding is
@@ -210,7 +211,7 @@ func (e *TunnelEngine) Stop(tunnelID string) error {
 	t.closeClient()
 	t.setStatus(StatusDisconnected)
 
-	fmt.Printf("[ssh] stopped tunnel %q\n", tunnelID)
+	slog.Info("stopped tunnel", "tunnel", tunnelID)
 	return nil
 }
 
@@ -262,12 +263,12 @@ func (t *tunnel) supervise(ctx context.Context) {
 			if t.keepalive() {
 				continue
 			}
-			fmt.Printf("[ssh] tunnel %q health check failed; reconnecting\n", t.id)
+			slog.Warn("health check failed; reconnecting", "tunnel", t.id)
 			if !t.reconnect(ctx) {
 				// reconnect returns false only when ctx was cancelled.
 				return
 			}
-			fmt.Printf("[ssh] tunnel %q reconnected\n", t.id)
+			slog.Info("reconnected", "tunnel", t.id)
 		}
 	}
 }
@@ -318,7 +319,7 @@ func (t *tunnel) reconnect(ctx context.Context) bool {
 		}
 
 		t.setStatus(StatusDisconnected)
-		fmt.Printf("[ssh] tunnel %q reconnect attempt failed: %v (retry in %s)\n", t.id, err, backoff)
+		slog.Warn("reconnect attempt failed", "tunnel", t.id, "error", err, "retryIn", backoff)
 
 		timer := time.NewTimer(backoff)
 		select {

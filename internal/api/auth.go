@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"sync"
@@ -129,7 +130,7 @@ func EnsureAdmin(d *db.DB) (string, error) {
 		return "", fmt.Errorf("set admin config: %w", err)
 	}
 
-	fmt.Printf("Admin password generated: %s\n", password)
+	slog.Info("admin password generated", "password", password)
 	return password, nil
 }
 

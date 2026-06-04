@@ -69,8 +69,8 @@ func ChangePasswordHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 		// Decrypt all keys with old password and re-encrypt with new password.
 		// All decryption/re-encryption happens in memory first to avoid partial writes.
 		type reencrypted struct {
-			key  *db.Key
-			pem  string
+			key *db.Key
+			pem string
 		}
 		reencryptedKeys := make([]reencrypted, 0, len(keys))
 

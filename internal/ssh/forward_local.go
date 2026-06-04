@@ -1,7 +1,7 @@
 package ssh
 
 import (
-	"fmt"
+	"log/slog"
 	"net"
 )
 
@@ -18,17 +18,17 @@ func (t *tunnel) startLocalForward() {
 	local := t.config.LocalAddr
 	remote := t.config.RemoteAddr
 	if local == "" || remote == "" {
-		fmt.Printf("[ssh] tunnel %q local forward skipped: localAddr=%q remoteAddr=%q\n", t.id, local, remote)
+		slog.Warn("local forward skipped", "tunnel", t.id, "localAddr", local, "remoteAddr", remote)
 		return
 	}
 
 	l, err := net.Listen("tcp", local)
 	if err != nil {
-		fmt.Printf("[ssh] tunnel %q local forward listen %s failed: %v\n", t.id, local, err)
+		slog.Error("local forward listen failed", "tunnel", t.id, "addr", local, "error", err)
 		return
 	}
 	t.addListener(l)
-	fmt.Printf("[ssh] tunnel %q forwarding -L %s -> %s\n", t.id, local, remote)
+	slog.Info("forwarding -L", "tunnel", t.id, "local", local, "remote", remote)
 
 	t.fwdWg.Add(1)
 	go t.acceptLoop(l, func(c net.Conn) {
@@ -47,7 +47,7 @@ func (t *tunnel) handleLocalConn(local net.Conn, remote string) {
 	}
 	remoteConn, err := client.Dial("tcp", remote)
 	if err != nil {
-		fmt.Printf("[ssh] tunnel %q local forward dial %s failed: %v\n", t.id, remote, err)
+		slog.Error("local forward dial failed", "tunnel", t.id, "addr", remote, "error", err)
 		_ = local.Close()
 		return
 	}

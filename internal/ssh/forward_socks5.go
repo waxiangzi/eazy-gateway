@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"slices"
 	"strconv"
@@ -34,17 +35,17 @@ const (
 func (t *tunnel) startDynamicForward() {
 	dynamic := t.config.DynamicAddr
 	if dynamic == "" {
-		fmt.Printf("[ssh] tunnel %q dynamic forward skipped: dynamicAddr empty\n", t.id)
+		slog.Warn("dynamic forward skipped", "tunnel", t.id)
 		return
 	}
 
 	l, err := net.Listen("tcp", dynamic)
 	if err != nil {
-		fmt.Printf("[ssh] tunnel %q dynamic forward listen %s failed: %v\n", t.id, dynamic, err)
+		slog.Error("dynamic forward listen failed", "tunnel", t.id, "addr", dynamic, "error", err)
 		return
 	}
 	t.addListener(l)
-	fmt.Printf("[ssh] tunnel %q forwarding -D %s (SOCKS5)\n", t.id, dynamic)
+	slog.Info("forwarding -D (SOCKS5)", "tunnel", t.id, "addr", dynamic)
 
 	t.fwdWg.Add(1)
 	go t.acceptLoop(l, t.handleSocksConn)
@@ -56,7 +57,7 @@ func (t *tunnel) startDynamicForward() {
 func (t *tunnel) handleSocksConn(client net.Conn) {
 	target, err := t.socksNegotiate(client)
 	if err != nil {
-		fmt.Printf("[ssh] tunnel %q SOCKS5 negotiate failed: %v\n", t.id, err)
+		slog.Error("SOCKS5 negotiate failed", "tunnel", t.id, "error", err)
 		_ = client.Close()
 		return
 	}

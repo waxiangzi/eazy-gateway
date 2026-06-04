@@ -1,7 +1,7 @@
 package ssh
 
 import (
-	"fmt"
+	"log/slog"
 	"net"
 )
 
@@ -18,7 +18,7 @@ func (t *tunnel) startRemoteForward() {
 	remote := t.config.RemoteAddr
 	local := t.config.LocalAddr
 	if remote == "" || local == "" {
-		fmt.Printf("[ssh] tunnel %q remote forward skipped: remoteAddr=%q localAddr=%q\n", t.id, remote, local)
+		slog.Warn("remote forward skipped", "tunnel", t.id, "remoteAddr", remote, "localAddr", local)
 		return
 	}
 
@@ -29,11 +29,11 @@ func (t *tunnel) startRemoteForward() {
 
 	l, err := client.Listen("tcp", remote)
 	if err != nil {
-		fmt.Printf("[ssh] tunnel %q remote forward listen %s rejected by server: %v\n", t.id, remote, err)
+		slog.Warn("remote forward listen rejected by server", "tunnel", t.id, "addr", remote, "error", err)
 		return
 	}
 	t.addListener(l)
-	fmt.Printf("[ssh] tunnel %q forwarding -R %s -> %s\n", t.id, remote, local)
+	slog.Info("forwarding -R", "tunnel", t.id, "remote", remote, "local", local)
 
 	t.fwdWg.Add(1)
 	go t.acceptLoop(l, func(c net.Conn) {
@@ -47,7 +47,7 @@ func (t *tunnel) startRemoteForward() {
 func (t *tunnel) handleRemoteConn(remote net.Conn, local string) {
 	localConn, err := net.Dial("tcp", local)
 	if err != nil {
-		fmt.Printf("[ssh] tunnel %q remote forward dial %s failed: %v\n", t.id, local, err)
+		slog.Error("remote forward dial failed", "tunnel", t.id, "addr", local, "error", err)
 		_ = remote.Close()
 		return
 	}
