@@ -5,26 +5,23 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
-	"github.com/tun-console/tun-console/internal/crypto"
 	"github.com/tun-console/tun-console/internal/db"
 	"github.com/tun-console/tun-console/internal/ssh"
 )
 
 // TunnelHandler holds shared dependencies for tunnel CRUD handlers.
 // engine is optional; when set, Delete also stops any running tunnel and the
-// Start/Stop endpoints become operational. adminPassword decrypts stored keys
-// for the engine at start time; it is required for Start to function.
+// Start/Stop endpoints become operational.
 type TunnelHandler struct {
-	db            *db.DB
-	engine        *ssh.TunnelEngine
-	adminPassword string
+	db     *db.DB
+	engine *ssh.TunnelEngine
 }
 
-// NewTunnelHandler creates a TunnelHandler with the given dependencies. The
-// admin password is used to decrypt SSH keys when starting a tunnel.
-func NewTunnelHandler(d *db.DB, engine *ssh.TunnelEngine, adminPassword string) *TunnelHandler {
-	return &TunnelHandler{db: d, engine: engine, adminPassword: adminPassword}
+// NewTunnelHandler creates a TunnelHandler with the given dependencies.
+func NewTunnelHandler(d *db.DB, engine *ssh.TunnelEngine) *TunnelHandler {
+	return &TunnelHandler{db: d, engine: engine}
 }
 
 // tunnelRequest is the JSON body accepted by Create and Update.
@@ -277,10 +274,11 @@ func (h *TunnelHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // Start handles POST /api/tunnels/{id}/start. It loads the tunnel config and
-// its SSH key, decrypts the key with the admin password, registers both with
-// the engine, and brings the tunnel online (establishing the configured
-// forwarding). Returns 200 on success, 404 if the tunnel is unknown, and 500
-// when the engine is unavailable or the connection/forwarding cannot start.
+// its SSH key, reads the private key from the filesystem path stored on the
+// key, registers both with the engine, and brings the tunnel online
+// (establishing the configured forwarding). Returns 200 on success, 404 if the
+// tunnel is unknown, and 500 when the engine is unavailable or the
+// connection/forwarding cannot start.
 func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -320,10 +318,10 @@ func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keyPEM, err := crypto.DecryptKey([]byte(key.EncryptedPEM), h.adminPassword)
+	keyPEM, err := os.ReadFile(key.PrivateKeyPath)
 	if err != nil {
-		log.Printf("ERROR: decrypt key for tunnel %q: %v", id, err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to decrypt key"})
+		log.Printf("ERROR: read private key file %q for tunnel %q: %v", key.PrivateKeyPath, id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read key"})
 		return
 	}
 

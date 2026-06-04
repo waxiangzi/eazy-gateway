@@ -10,8 +10,9 @@ import (
 )
 
 // ChangePasswordHandler handles POST /api/admin/change-password.
-// It verifies the old password, re-encrypts all SSH keys with the new password,
-// updates the admin password hash, and invalidates all sessions.
+// It verifies the old password, updates the admin password hash, and
+// invalidates all sessions. SSH private keys live on the filesystem and are
+// not affected by a password change.
 func ChangePasswordHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -54,48 +55,6 @@ func ChangePasswordHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 			return
 		}
 
-		// Retrieve all keys for re-encryption
-		keys, err := d.ListKeys()
-		if err != nil {
-			log.Printf("ERROR: list keys: %v", err)
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
-			return
-		}
-
-		if len(keys) > 0 {
-			log.Printf("Re-encrypting %d SSH keys with new password (this may take time)", len(keys))
-		}
-
-		// Decrypt all keys with old password and re-encrypt with new password.
-		// All decryption/re-encryption happens in memory first to avoid partial writes.
-		type reencrypted struct {
-			key *db.Key
-			pem string
-		}
-		reencryptedKeys := make([]reencrypted, 0, len(keys))
-
-		for _, key := range keys {
-			decryptedPEM, err := crypto.DecryptKey([]byte(key.EncryptedPEM), body.OldPassword)
-			if err != nil {
-				log.Printf("ERROR: decrypt key %s: %v", key.ID, err)
-				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to re-encrypt keys"})
-				return
-			}
-
-			encryptedPEM, err := crypto.EncryptKey(decryptedPEM, body.NewPassword)
-			if err != nil {
-				log.Printf("ERROR: encrypt key %s: %v", key.ID, err)
-				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to re-encrypt keys"})
-				return
-			}
-
-			reencryptedKeys = append(reencryptedKeys, reencrypted{
-				key: key,
-				pem: string(encryptedPEM),
-			})
-		}
-
-		// Hash the new password
 		newHash, err := crypto.HashPassword(body.NewPassword)
 		if err != nil {
 			log.Printf("ERROR: hash password: %v", err)
@@ -103,17 +62,9 @@ func ChangePasswordHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 			return
 		}
 
-		// Atomically update all keys and admin config in a single DB transaction.
-		// This ensures consistency: if the transaction fails, nothing is written.
-		updatedKeys := make([]*db.Key, len(reencryptedKeys))
-		for i, rk := range reencryptedKeys {
-			rk.key.EncryptedPEM = rk.pem
-			updatedKeys[i] = rk.key
-		}
-
 		cfg.PasswordHash = newHash
-		if err := d.ReencryptKeysAndSetAdmin(updatedKeys, cfg); err != nil {
-			log.Printf("ERROR: atomic update failed: %v", err)
+		if err := d.SetAdmin(cfg); err != nil {
+			log.Printf("ERROR: update admin config: %v", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 			return
 		}

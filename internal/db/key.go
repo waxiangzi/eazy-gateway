@@ -8,13 +8,15 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// Key represents an encrypted SSH private key stored in the database.
+// Key represents an SSH key whose private key is stored on the filesystem.
+// The database holds only metadata and a path to the private key file; the
+// private key material itself is never persisted in the database.
 type Key struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	PublicKey    string    `json:"publicKey"`
-	EncryptedPEM string    `json:"encryptedPem"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID             string    `json:"id"`
+	Name           string    `json:"name"`
+	PublicKey      string    `json:"publicKey"`
+	PrivateKeyPath string    `json:"privateKeyPath"`
+	CreatedAt      time.Time `json:"createdAt"`
 }
 
 // CreateKey stores a new encrypted SSH key and returns its assigned ID.
