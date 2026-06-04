@@ -6,8 +6,6 @@ export const useKeysStore = defineStore('keys', () => {
   const list = ref([])
   const isLoading = ref(false)
   const error = ref(null)
-  const isGenerating = ref(false)
-  const generateError = ref(null)
   const isDeleting = ref(false)
   const deleteError = ref(null)
 
@@ -43,21 +41,6 @@ export const useKeysStore = defineStore('keys', () => {
     }
   }
 
-  async function createKey(data) {
-    isGenerating.value = true
-    generateError.value = null
-    try {
-      const res = await client.post('/keys', data)
-      addKey(res.data)
-      return res.data
-    } catch (err) {
-      generateError.value = err.response?.data?.message || 'Failed to create key'
-      return false
-    } finally {
-      isGenerating.value = false
-    }
-  }
-
   async function deleteKey(id) {
     isDeleting.value = true
     deleteError.value = null
@@ -81,8 +64,6 @@ export const useKeysStore = defineStore('keys', () => {
     list,
     isLoading,
     error,
-    isGenerating,
-    generateError,
     isDeleting,
     deleteError,
     hasKeys,
@@ -90,7 +71,6 @@ export const useKeysStore = defineStore('keys', () => {
     addKey,
     removeKey,
     fetchKeys,
-    createKey,
     deleteKey,
   }
 })
