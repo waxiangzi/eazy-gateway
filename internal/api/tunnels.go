@@ -6,20 +6,25 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/tun-console/tun-console/internal/crypto"
 	"github.com/tun-console/tun-console/internal/db"
 	"github.com/tun-console/tun-console/internal/ssh"
 )
 
 // TunnelHandler holds shared dependencies for tunnel CRUD handlers.
-// engine is optional; when set, Delete also stops any running tunnel.
+// engine is optional; when set, Delete also stops any running tunnel and the
+// Start/Stop endpoints become operational. adminPassword decrypts stored keys
+// for the engine at start time; it is required for Start to function.
 type TunnelHandler struct {
-	db     *db.DB
-	engine *ssh.TunnelEngine
+	db            *db.DB
+	engine        *ssh.TunnelEngine
+	adminPassword string
 }
 
-// NewTunnelHandler creates a TunnelHandler with the given dependencies.
-func NewTunnelHandler(d *db.DB, engine *ssh.TunnelEngine) *TunnelHandler {
-	return &TunnelHandler{db: d, engine: engine}
+// NewTunnelHandler creates a TunnelHandler with the given dependencies. The
+// admin password is used to decrypt SSH keys when starting a tunnel.
+func NewTunnelHandler(d *db.DB, engine *ssh.TunnelEngine, adminPassword string) *TunnelHandler {
+	return &TunnelHandler{db: d, engine: engine, adminPassword: adminPassword}
 }
 
 // tunnelRequest is the JSON body accepted by Create and Update.
@@ -269,4 +274,111 @@ func (h *TunnelHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// Start handles POST /api/tunnels/{id}/start. It loads the tunnel config and
+// its SSH key, decrypts the key with the admin password, registers both with
+// the engine, and brings the tunnel online (establishing the configured
+// forwarding). Returns 200 on success, 404 if the tunnel is unknown, and 500
+// when the engine is unavailable or the connection/forwarding cannot start.
+func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id required"})
+		return
+	}
+
+	if h.engine == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "engine not available"})
+		return
+	}
+
+	tc, err := h.db.GetTunnel(id)
+	if err != nil {
+		log.Printf("ERROR: get tunnel %q: %v", id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	if tc == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "tunnel not found"})
+		return
+	}
+
+	key, err := h.db.GetKey(tc.KeyID)
+	if err != nil {
+		log.Printf("ERROR: get key %q for tunnel %q: %v", tc.KeyID, id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	if key == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "tunnel key not found"})
+		return
+	}
+
+	keyPEM, err := crypto.DecryptKey([]byte(key.EncryptedPEM), h.adminPassword)
+	if err != nil {
+		log.Printf("ERROR: decrypt key for tunnel %q: %v", id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to decrypt key"})
+		return
+	}
+
+	if err := h.engine.Register(toSSHConfig(tc), keyPEM); err != nil {
+		log.Printf("ERROR: register tunnel %q: %v", id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+
+	if err := h.engine.Start(id); err != nil {
+		log.Printf("ERROR: start tunnel %q: %v", id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "started"})
+}
+
+// Stop handles POST /api/tunnels/{id}/stop. It validates the tunnel exists and
+// delegates to the engine, which tears down forwarding and the SSH connection.
+// Returns 200 on success, 404 if the tunnel is unknown, and 500 when the
+// engine is unavailable or the tunnel is not running.
+func (h *TunnelHandler) Stop(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id required"})
+		return
+	}
+
+	if h.engine == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "engine not available"})
+		return
+	}
+
+	tc, err := h.db.GetTunnel(id)
+	if err != nil {
+		log.Printf("ERROR: get tunnel %q: %v", id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	if tc == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "tunnel not found"})
+		return
+	}
+
+	if err := h.engine.Stop(id); err != nil {
+		log.Printf("ERROR: stop tunnel %q: %v", id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
 }

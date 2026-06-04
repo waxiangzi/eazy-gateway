@@ -3,6 +3,8 @@ package ssh
 import (
 	"context"
 	"fmt"
+	"io"
+	"net"
 	"sync"
 	"time"
 
@@ -63,6 +65,12 @@ func NewTunnelEngine() *TunnelEngine {
 // read without locking. All other fields are guarded by mu. The supervise
 // goroutine is the only writer of client/status after Start returns, except
 // that Stop closes the client after the goroutine has exited.
+//
+// Forwarding state (listeners and active connections) is guarded by fwdMu,
+// a lock separate from mu so that accepting/relaying goroutines never contend
+// with the health-check/status path. fwdWg tracks every forwarding goroutine
+// (accept loops and per-connection relays) so Stop can wait for a clean
+// shutdown with no goroutine leak.
 type tunnel struct {
 	id     string
 	config *Config
@@ -74,6 +82,11 @@ type tunnel struct {
 	mu     sync.RWMutex
 	client *ssh.Client
 	status string
+
+	fwdMu     sync.Mutex
+	listeners []net.Listener
+	conns     map[net.Conn]struct{}
+	fwdWg     sync.WaitGroup
 }
 
 // Register stores a tunnel's configuration and its decrypted PEM private key
@@ -142,6 +155,7 @@ func (e *TunnelEngine) Start(tunnelID string) error {
 		engine: e,
 		cancel: cancel,
 		status: StatusConnecting,
+		conns:  make(map[net.Conn]struct{}),
 	}
 	e.tunnels[tunnelID] = t
 	e.mu.Unlock()
@@ -161,6 +175,8 @@ func (e *TunnelEngine) Start(tunnelID string) error {
 	t.client = client
 	t.status = StatusConnected
 	t.mu.Unlock()
+
+	t.startForwarding()
 
 	t.wg.Add(1)
 	go t.supervise(ctx)
@@ -186,9 +202,11 @@ func (e *TunnelEngine) Stop(tunnelID string) error {
 	fmt.Printf("[ssh] stopping tunnel %q\n", tunnelID)
 
 	// Signal the supervisor to stop, then wait for it to exit before closing
-	// the client so there is no concurrent access to t.client.
+	// the client so there is no concurrent access to t.client. Forwarding is
+	// torn down first so its listeners and relays stop before the transport.
 	t.cancel()
 	t.wg.Wait()
+	t.stopForwarding()
 	t.closeClient()
 	t.setStatus(StatusDisconnected)
 
@@ -275,6 +293,7 @@ func (t *tunnel) keepalive() bool {
 // is read under the engine's key lock on every attempt so it stays current.
 func (t *tunnel) reconnect(ctx context.Context) bool {
 	t.setStatus(StatusDisconnected)
+	t.stopForwarding()
 	t.closeClient()
 
 	backoff := initialBackoff
@@ -294,6 +313,7 @@ func (t *tunnel) reconnect(ctx context.Context) bool {
 			t.client = client
 			t.status = StatusConnected
 			t.mu.Unlock()
+			t.startForwarding()
 			return true
 		}
 
@@ -327,6 +347,134 @@ func (t *tunnel) closeClient() {
 	if client != nil {
 		_ = client.Close()
 	}
+}
+
+// getClient returns the tunnel's current SSH client under read lock, or nil if
+// none is connected. Forwarding goroutines call this on every dial so they
+// always use the latest client after a reconnect.
+func (t *tunnel) getClient() *ssh.Client {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.client
+}
+
+// startForwarding launches the forwarder appropriate to the tunnel's type. It
+// runs after every successful (re)connect and re-arms the active-connection
+// set that the preceding stopForwarding nilled out. Unknown types are a no-op.
+func (t *tunnel) startForwarding() {
+	t.fwdMu.Lock()
+	t.conns = make(map[net.Conn]struct{})
+	t.fwdMu.Unlock()
+
+	switch t.config.Type {
+	case "local":
+		t.startLocalForward()
+	case "remote":
+		t.startRemoteForward()
+	case "dynamic":
+		t.startDynamicForward()
+	}
+}
+
+// stopForwarding tears down all forwarding for the tunnel. It nils the
+// connection set so any goroutine still racing to register a freshly accepted
+// connection aborts instead of leaking, closes every listener (unblocking
+// accept loops) and every active connection (unblocking in-flight relays),
+// then waits for all forwarding goroutines to exit. Safe to call when nothing
+// is forwarding.
+func (t *tunnel) stopForwarding() {
+	t.fwdMu.Lock()
+	listeners := t.listeners
+	t.listeners = nil
+	conns := t.conns
+	t.conns = nil
+	t.fwdMu.Unlock()
+
+	for _, l := range listeners {
+		_ = l.Close()
+	}
+	for c := range conns {
+		_ = c.Close()
+	}
+
+	t.fwdWg.Wait()
+}
+
+// addListener records a listener so stopForwarding can close it.
+func (t *tunnel) addListener(l net.Listener) {
+	t.fwdMu.Lock()
+	t.listeners = append(t.listeners, l)
+	t.fwdMu.Unlock()
+}
+
+// trackConn registers an active forwarded connection so stopForwarding can
+// close it to unblock a stalled relay. It returns false once stopForwarding has
+// begun (conns nilled); the caller must then close the connection itself rather
+// than relay it, which closes the race window where a connection accepted
+// during shutdown would otherwise relay forever and hang fwdWg.Wait.
+func (t *tunnel) trackConn(c net.Conn) bool {
+	t.fwdMu.Lock()
+	defer t.fwdMu.Unlock()
+	if t.conns == nil {
+		return false
+	}
+	t.conns[c] = struct{}{}
+	return true
+}
+
+// untrackConn removes a connection from the active set once its relay is done.
+func (t *tunnel) untrackConn(c net.Conn) {
+	t.fwdMu.Lock()
+	if t.conns != nil {
+		delete(t.conns, c)
+	}
+	t.fwdMu.Unlock()
+}
+
+// acceptLoop accepts connections on l until it is closed, handing each off to
+// handle in its own tracked goroutine. It owns one fwdWg count (added by the
+// caller before launching it) and adds another per accepted connection, so
+// stopForwarding's fwdWg.Wait covers both the loop and every relay. handle is
+// responsible for closing the connection it is given.
+func (t *tunnel) acceptLoop(l net.Listener, handle func(net.Conn)) {
+	defer t.fwdWg.Done()
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		if !t.trackConn(conn) {
+			_ = conn.Close()
+			return
+		}
+		t.fwdWg.Add(1)
+		go func(c net.Conn) {
+			defer t.fwdWg.Done()
+			defer t.untrackConn(c)
+			handle(c)
+		}(conn)
+	}
+}
+
+// pipe relays bytes in both directions between a and b until either side hits
+// EOF or an error, then closes both ends so the opposite copy also unblocks.
+// It is the per-connection workhorse shared by all three forwarders.
+func (t *tunnel) pipe(a, b net.Conn) {
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, _ = io.Copy(a, b)
+		_ = a.Close()
+		_ = b.Close()
+	}()
+	go func() {
+		defer wg.Done()
+		_, _ = io.Copy(b, a)
+		_ = a.Close()
+		_ = b.Close()
+	}()
+	wg.Wait()
 }
 
 // getStatus returns the tunnel's current status string under read lock.
