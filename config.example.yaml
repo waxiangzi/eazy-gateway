@@ -1,0 +1,14 @@
+# tun-console configuration
+# Copy this file to config.yaml and adjust as needed.
+
+# HTTP server listen address
+# Default: :8080
+listen_address: ":8080"
+
+# Directory for persistent data (e.g., SSH host keys, user data)
+# Default: ./data
+data_directory: "./data"
+
+# Log level: debug, info, warn, error
+# Default: info
+log_level: "info"
