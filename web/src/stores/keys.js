@@ -6,8 +6,8 @@ export const useKeysStore = defineStore('keys', () => {
   const list = ref([])
   const isLoading = ref(false)
   const error = ref(null)
-  const isUploading = ref(false)
-  const uploadError = ref(null)
+  const isGenerating = ref(false)
+  const generateError = ref(null)
   const isDeleting = ref(false)
   const deleteError = ref(null)
 
@@ -44,21 +44,17 @@ export const useKeysStore = defineStore('keys', () => {
   }
 
   async function createKey(data) {
-    isUploading.value = true
-    uploadError.value = null
+    isGenerating.value = true
+    generateError.value = null
     try {
       const res = await client.post('/keys', data)
       addKey(res.data)
-      return true
+      return res.data
     } catch (err) {
-      if (err.response?.status === 409) {
-        uploadError.value = 'Key is in use by a tunnel'
-      } else {
-        uploadError.value = err.response?.data?.message || 'Failed to create key'
-      }
+      generateError.value = err.response?.data?.message || 'Failed to create key'
       return false
     } finally {
-      isUploading.value = false
+      isGenerating.value = false
     }
   }
 
@@ -85,8 +81,8 @@ export const useKeysStore = defineStore('keys', () => {
     list,
     isLoading,
     error,
-    isUploading,
-    uploadError,
+    isGenerating,
+    generateError,
     isDeleting,
     deleteError,
     hasKeys,

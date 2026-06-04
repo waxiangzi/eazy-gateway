@@ -24,12 +24,12 @@ func NewKeysHandler(d *db.DB, adminPassword string) *KeysHandler {
 	}
 }
 
-// HandleCreate handles POST /api/keys — accepts { "name": "...", "pem": "..." },
-// encrypts the PEM with the admin password, stores in DB, returns 201 + key ID.
+// HandleCreate handles POST /api/keys — accepts { "name": "..." },
+// generates an Ed25519 key pair, encrypts the private key with the admin
+// password, stores both in DB, returns 201 + key info.
 func (h *KeysHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name string `json:"name"`
-		PEM  string `json:"pem"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -39,12 +39,15 @@ func (h *KeysHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
 		return
 	}
-	if body.PEM == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pem is required"})
+
+	privPEM, pubKey, err := crypto.GenerateEd25519KeyPair()
+	if err != nil {
+		log.Printf("ERROR: generate key pair: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to generate key"})
 		return
 	}
 
-	encrypted, err := crypto.EncryptKey([]byte(body.PEM), h.adminPassword)
+	encrypted, err := crypto.EncryptKey([]byte(privPEM), h.adminPassword)
 	if err != nil {
 		log.Printf("ERROR: encrypt key: %v", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encrypt key"})
@@ -53,6 +56,7 @@ func (h *KeysHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 
 	key := &db.Key{
 		Name:         body.Name,
+		PublicKey:    pubKey,
 		EncryptedPEM: string(encrypted),
 	}
 
@@ -63,7 +67,16 @@ func (h *KeysHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]string{"id": id})
+	// Log the private key to stdout on first key generation so it can be saved
+	log.Printf("IMPORTANT: Generated SSH key %q (ID: %s)", body.Name, id)
+	log.Printf("IMPORTANT: Private key for %q (SAVE THIS — it will not be shown again):\n%s", body.Name, privPEM)
+
+	writeJSON(w, http.StatusCreated, map[string]string{
+		"id":         id,
+		"name":       body.Name,
+		"publicKey":  pubKey,
+		"privateKey": privPEM,
+	})
 }
 
 // HandleList handles GET /api/keys — returns all keys with ID, Name, CreatedAt
@@ -79,6 +92,7 @@ func (h *KeysHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 	type keyResponse struct {
 		ID        string    `json:"id"`
 		Name      string    `json:"name"`
+		PublicKey string    `json:"publicKey"`
 		CreatedAt time.Time `json:"createdAt"`
 	}
 
@@ -87,6 +101,7 @@ func (h *KeysHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 		result = append(result, keyResponse{
 			ID:        k.ID,
 			Name:      k.Name,
+			PublicKey: k.PublicKey,
 			CreatedAt: k.CreatedAt,
 		})
 	}

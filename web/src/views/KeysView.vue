@@ -2,9 +2,9 @@
   <div class="keys-view">
     <h1 class="page-title">SSH Keys</h1>
 
-    <section class="upload-section">
-      <h2 class="section-title">Upload Key</h2>
-      <form class="upload-form" @submit.prevent="handleCreate">
+    <section class="generate-section">
+      <h2 class="section-title">Generate Key</h2>
+      <form class="generate-form" @submit.prevent="handleCreate">
         <div class="form-group">
           <label for="key-name">Name</label>
           <input
@@ -15,19 +15,9 @@
             required
           />
         </div>
-        <div class="form-group">
-          <label for="key-pem">Private Key (PEM)</label>
-          <textarea
-            id="key-pem"
-            v-model="form.pem"
-            rows="8"
-            placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
-            required
-          ></textarea>
-        </div>
-        <p v-if="keys.uploadError" class="error-message">{{ keys.uploadError }}</p>
-        <button type="submit" class="btn-primary" :disabled="keys.isUploading">
-          {{ keys.isUploading ? 'Uploading…' : 'Upload Key' }}
+        <p v-if="keys.generateError" class="error-message">{{ keys.generateError }}</p>
+        <button type="submit" class="btn-primary" :disabled="keys.isGenerating">
+          {{ keys.isGenerating ? 'Generating…' : 'Generate Key' }}
         </button>
       </form>
     </section>
@@ -39,7 +29,7 @@
 
       <div v-else-if="!keys.hasKeys" class="empty-state">
         <p>No SSH keys yet.</p>
-        <p class="empty-hint">Upload a key above to get started.</p>
+        <p class="empty-hint">Generate a key above to get started.</p>
       </div>
 
       <div v-else class="key-list">
@@ -51,6 +41,7 @@
         >
           <div class="key-info">
             <span class="key-name">{{ key.name }}</span>
+            <span v-if="key.publicKey" class="key-public">{{ key.publicKey.trim() }}</span>
             <span class="key-date">{{ formatDate(key.createdAt) }}</span>
           </div>
           <button
@@ -63,19 +54,42 @@
         </div>
       </div>
     </section>
+
+    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
+      <div class="modal-content">
+        <h2 class="modal-title">Key Generated: {{ generatedKeyName }}</h2>
+        <p class="modal-notice">
+          This is the only time the private key will be displayed. Save it securely now.
+        </p>
+        <textarea
+          class="modal-key-area"
+          :value="generatedPrivateKey"
+          readonly
+          rows="10"
+          @click="$event.target.select()"
+        ></textarea>
+        <div class="modal-actions">
+          <button class="btn-primary" @click="copyPrivateKey">Copy to Clipboard</button>
+          <button class="btn-secondary" @click="closeModal">Done</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, onMounted } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { useKeysStore } from '../stores/keys.js'
 
 const keys = useKeysStore()
 
 const form = reactive({
   name: '',
-  pem: '',
 })
+
+const showModal = ref(false)
+const generatedKeyName = ref('')
+const generatedPrivateKey = ref('')
 
 function formatDate(ts) {
   if (!ts) return ''
@@ -84,14 +98,29 @@ function formatDate(ts) {
 }
 
 async function handleCreate() {
-  const ok = await keys.createKey({
+  const result = await keys.createKey({
     name: form.name.trim(),
-    pem: form.pem.trim(),
   })
-  if (ok) {
+  if (result) {
+    generatedKeyName.value = result.name
+    generatedPrivateKey.value = result.privateKey
+    showModal.value = true
     form.name = ''
-    form.pem = ''
     await keys.fetchKeys()
+  }
+}
+
+function closeModal() {
+  showModal.value = false
+  generatedKeyName.value = ''
+  generatedPrivateKey.value = ''
+}
+
+async function copyPrivateKey() {
+  try {
+    await navigator.clipboard.writeText(generatedPrivateKey.value)
+  } catch {
+    // fallback: select the textarea text
   }
 }
 
@@ -122,7 +151,7 @@ onMounted(() => {
   color: #0f172a;
 }
 
-.upload-section {
+.generate-section {
   margin-bottom: 2rem;
   padding: 1.5rem;
   background: #ffffff;
@@ -141,7 +170,7 @@ onMounted(() => {
   color: #0f172a;
 }
 
-.upload-form {
+.generate-form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -159,8 +188,7 @@ onMounted(() => {
   color: #334155;
 }
 
-.form-group input,
-.form-group textarea {
+.form-group input {
   padding: 0.5rem 0.75rem;
   border: 1px solid #cbd5e1;
   border-radius: 0.375rem;
@@ -171,13 +199,7 @@ onMounted(() => {
   font-family: inherit;
 }
 
-.form-group textarea {
-  resize: vertical;
-  min-height: 6rem;
-}
-
-.form-group input:focus,
-.form-group textarea:focus {
+.form-group input:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
@@ -213,6 +235,22 @@ onMounted(() => {
 .btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.btn-secondary {
+  padding: 0.625rem 1.25rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.375rem;
+  background: #fff;
+  color: #334155;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-secondary:hover {
+  background: #f1f5f9;
 }
 
 .loading-text {
@@ -259,6 +297,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  min-width: 0;
 }
 
 .key-name {
@@ -267,12 +306,22 @@ onMounted(() => {
   font-size: 0.9375rem;
 }
 
+.key-public {
+  font-size: 0.8125rem;
+  color: #475569;
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .key-date {
   font-size: 0.8125rem;
   color: #64748b;
 }
 
 .btn-danger {
+  flex-shrink: 0;
   padding: 0.375rem 0.75rem;
   border: 1px solid #fecaca;
   border-radius: 0.375rem;
@@ -291,5 +340,59 @@ onMounted(() => {
 .btn-danger:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 0.75rem;
+  padding: 1.5rem 2rem;
+  max-width: 40rem;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.modal-notice {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.modal-key-area {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.375rem;
+  font-family: monospace;
+  font-size: 0.8125rem;
+  color: #0f172a;
+  background: #f8fafc;
+  resize: none;
+  box-sizing: border-box;
+}
+
+.modal-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
 }
 </style>

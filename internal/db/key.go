@@ -12,6 +12,7 @@ import (
 type Key struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`
+	PublicKey    string    `json:"publicKey"`
 	EncryptedPEM string    `json:"encryptedPem"`
 	CreatedAt    time.Time `json:"createdAt"`
 }
