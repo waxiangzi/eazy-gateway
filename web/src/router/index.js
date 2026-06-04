@@ -19,6 +19,11 @@ const routes = [
     component: () => import('../views/TunnelEditView.vue'),
   },
   {
+    path: '/tunnels/:id',
+    name: 'TunnelEdit',
+    component: () => import('../views/TunnelEditView.vue'),
+  },
+  {
     path: '/keys',
     name: 'Keys',
     component: () => import('../views/KeysView.vue'),
