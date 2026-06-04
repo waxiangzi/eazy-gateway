@@ -8,10 +8,11 @@ RUN npm install && npm run build
 FROM golang:1.26-alpine AS go-builder
 WORKDIR /src
 COPY go.mod go.sum ./
+COPY internal/bbolt_shim/ ./internal/bbolt_shim/
 RUN go mod download
 COPY . .
-COPY --from=web-builder /web/dist/ ./web/dist/
-RUN CGO_ENABLED=0 go build -o /tun-console ./cmd/tun-console/
+COPY --from=web-builder /web/dist/ ./cmd/tun-console/dist/
+RUN CGO_ENABLED=0 go build -tags embed -o /tun-console ./cmd/tun-console/
 
 # Stage 3: Minimal runtime image
 FROM gcr.io/distroless/static-debian12:nonroot
