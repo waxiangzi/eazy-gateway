@@ -47,6 +47,7 @@ export const useTunnelsStore = defineStore('tunnels', () => {
   }
 
   async function startTunnel(id) {
+    error.value = null
     statuses.value[id] = 'connecting'
     try {
       await client.post(`/tunnels/${id}/start`)
@@ -54,17 +55,26 @@ export const useTunnelsStore = defineStore('tunnels', () => {
       return true
     } catch (err) {
       statuses.value[id] = 'error'
+      error.value =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        'Failed to start tunnel'
       return false
     }
   }
 
   async function stopTunnel(id) {
+    error.value = null
     try {
       await client.post(`/tunnels/${id}/stop`)
       statuses.value[id] = 'disconnected'
       return true
     } catch (err) {
       statuses.value[id] = 'error'
+      error.value =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        'Failed to stop tunnel'
       return false
     }
   }

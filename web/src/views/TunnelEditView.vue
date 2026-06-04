@@ -2,7 +2,10 @@
   <div class="tunnel-edit-view">
     <h1 class="page-title">{{ isEditMode ? 'Edit Tunnel' : 'Create Tunnel' }}</h1>
 
-    <form class="tunnel-form" @submit.prevent="handleSubmit">
+    <div v-if="isLoading" class="state-message">Loading…</div>
+    <div v-else-if="loadError" class="state-message error">{{ loadError }}</div>
+
+    <form v-else class="tunnel-form" @submit.prevent="handleSubmit">
       <div class="form-group">
         <label for="name">Name</label>
         <input
@@ -153,6 +156,8 @@ const keysStore = useKeysStore()
 const isEditMode = computed(() => !!route.params.id)
 const isSubmitting = ref(false)
 const submitError = ref('')
+const isLoading = ref(false)
+const loadError = ref('')
 
 const form = reactive({
   name: '',
@@ -265,18 +270,21 @@ watch(() => form.type, (newType, oldType) => {
 })
 
 onMounted(async () => {
-  // Load keys for dropdown
-  if (keysStore.list.length === 0) {
-    try {
-      await keysStore.fetchKeys()
-    } catch {
-      // ignore; dropdown will be empty
-    }
-  }
+  isLoading.value = true
+  loadError.value = ''
 
-  // Load tunnel data in edit mode
-  if (isEditMode.value) {
-    try {
+  try {
+    // Load keys for dropdown
+    if (keysStore.list.length === 0) {
+      try {
+        await keysStore.fetchKeys()
+      } catch {
+        loadError.value = 'Failed to load SSH keys'
+      }
+    }
+
+    // Load tunnel data in edit mode
+    if (isEditMode.value) {
       const tunnel = await tunnelsStore.getTunnel(route.params.id)
       form.name = tunnel.name || ''
       form.type = tunnel.type || 'local'
@@ -287,13 +295,15 @@ onMounted(async () => {
       form.localAddr = tunnel.localAddr || ''
       form.remoteAddr = tunnel.remoteAddr || ''
       form.dynamicAddr = tunnel.dynamicAddr || ''
-    } catch (err) {
-      if (!err.response) {
-        submitError.value = 'Network error'
-      } else {
-        submitError.value = err.response.data?.error || err.response.data?.message || 'Failed to load tunnel'
-      }
     }
+  } catch (err) {
+    if (!err.response) {
+      loadError.value = 'Network error'
+    } else {
+      loadError.value = err.response.data?.error || err.response.data?.message || 'Failed to load tunnel'
+    }
+  } finally {
+    isLoading.value = false
   }
 })
 </script>
@@ -407,5 +417,16 @@ onMounted(async () => {
 
 .btn-secondary:hover {
   background: #cbd5e1;
+}
+
+.state-message {
+  padding: 2rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 1rem;
+}
+
+.state-message.error {
+  color: #dc2626;
 }
 </style>
