@@ -101,7 +101,7 @@ func toSSHConfig(tc *db.TunnelConfig) *ssh.Config {
 	}
 }
 
-// List handles GET /api/tunnels — returns all tunnel configs.
+// List handles GET /api/tunnels — returns all tunnel configs with runtime status.
 func (h *TunnelHandler) List(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -119,10 +119,24 @@ func (h *TunnelHandler) List(w http.ResponseWriter, r *http.Request) {
 		tunnels = []*db.TunnelConfig{}
 	}
 
-	writeJSON(w, http.StatusOK, tunnels)
+	type item struct {
+		db.TunnelConfig
+		Status string `json:"status"`
+	}
+
+	items := make([]item, 0, len(tunnels))
+	for _, t := range tunnels {
+		s := ssh.StatusDisconnected
+		if h.engine != nil {
+			s = h.engine.Status(t.ID)
+		}
+		items = append(items, item{TunnelConfig: *t, Status: s})
+	}
+
+	writeJSON(w, http.StatusOK, items)
 }
 
-// Get handles GET /api/tunnels/{id} — returns a single tunnel config.
+// Get handles GET /api/tunnels/{id} — returns a single tunnel config with runtime status.
 func (h *TunnelHandler) Get(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -146,7 +160,54 @@ func (h *TunnelHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, tc)
+	type response struct {
+		db.TunnelConfig
+		Status string `json:"status"`
+	}
+
+	status := ssh.StatusDisconnected
+	if h.engine != nil {
+		status = h.engine.Status(id)
+	}
+
+	writeJSON(w, http.StatusOK, response{TunnelConfig: *tc, Status: status})
+}
+
+// Status handles GET /api/tunnels/{id}/status — returns tunnel config with runtime status.
+func (h *TunnelHandler) Status(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id required"})
+		return
+	}
+
+	tc, err := h.db.GetTunnel(id)
+	if err != nil {
+		log.Printf("ERROR: get tunnel %q: %v", id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	if tc == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "tunnel not found"})
+		return
+	}
+
+	type response struct {
+		db.TunnelConfig
+		Status string `json:"status"`
+	}
+
+	status := ssh.StatusDisconnected
+	if h.engine != nil {
+		status = h.engine.Status(id)
+	}
+
+	writeJSON(w, http.StatusOK, response{TunnelConfig: *tc, Status: status})
 }
 
 // Create handles POST /api/tunnels — creates a new tunnel config.
