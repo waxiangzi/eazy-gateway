@@ -134,6 +134,36 @@ func EnsureAdmin(d *db.DB) (string, error) {
 	return password, nil
 }
 
+// ResetAdminPassword generates a new random password, hashes it with bcrypt,
+// and replaces the existing admin password hash in the database.
+// Returns the new plaintext password. Returns an error if no admin exists.
+func ResetAdminPassword(d *db.DB) (string, error) {
+	cfg, err := d.GetAdmin()
+	if err != nil {
+		return "", fmt.Errorf("get admin config: %w", err)
+	}
+	if cfg == nil {
+		return "", fmt.Errorf("no admin configured — run the server first to initialize")
+	}
+
+	password, err := generatePassword()
+	if err != nil {
+		return "", err
+	}
+
+	hash, err := crypto.HashPassword(password)
+	if err != nil {
+		return "", fmt.Errorf("hash password: %w", err)
+	}
+
+	cfg.PasswordHash = hash
+	if err := d.SetAdmin(cfg); err != nil {
+		return "", fmt.Errorf("set admin config: %w", err)
+	}
+
+	return password, nil
+}
+
 // LoginHandler handles POST /api/login.
 func LoginHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -248,11 +278,12 @@ func NewAuthMiddleware(sessions *SessionStore) *AuthMiddleware {
 }
 
 // Wrap returns an http.Handler that checks the session cookie before passing
-// requests to the next handler. Requests to /api/login are allowed through.
+// requests to the next handler. Requests to /api/login and /api/admin/reset-password
+// are allowed through without authentication.
 func (m *AuthMiddleware) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow login endpoint without session
-		if r.URL.Path == "/api/login" {
+		// Allow login and password reset endpoints without session
+		if r.URL.Path == "/api/login" || r.URL.Path == "/api/admin/reset-password" {
 			next.ServeHTTP(w, r)
 			return
 		}
