@@ -1,21 +1,21 @@
 <template>
   <div class="login-view">
     <form class="login-form" @submit.prevent="handleSubmit">
-      <h1 class="login-title">Tun Console</h1>
+      <h1 class="login-title">{{ t('login.title') }}</h1>
       <div class="form-group">
-        <label for="password">Password</label>
+        <label for="password">{{ t('login.passwordLabel') }}</label>
         <input
           id="password"
           v-model="password"
           type="password"
-          placeholder="Enter password"
+          :placeholder="t('login.passwordPlaceholder')"
           required
           autocomplete="current-password"
         />
       </div>
       <p v-if="error" class="error-message">{{ error }}</p>
       <button type="submit" class="login-button" :disabled="auth.isLoading">
-        {{ auth.isLoading ? 'Logging in…' : 'Login' }}
+        {{ auth.isLoading ? t('login.loggingIn') : t('login.submit') }}
       </button>
     </form>
   </div>
@@ -24,8 +24,10 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth.js'
 
+const { t } = useI18n()
 const password = ref('')
 const auth = useAuthStore()
 const router = useRouter()

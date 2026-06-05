@@ -30,17 +30,21 @@ export const useTunnelsStore = defineStore('tunnels', () => {
     error.value = null
     try {
       const res = await client.get('/tunnels')
-      list.value = res.data || []
+      const data = res.data || {}
+      const tunnels = data.items || []
+      list.value = tunnels
       for (const t of list.value) {
         if (statuses.value[t.id] === undefined) {
           statuses.value[t.id] = 'disconnected'
         }
       }
+      return data.hosts || {}
     } catch (err) {
       error.value =
         err.response?.data?.message ||
         err.response?.data?.error ||
         'Failed to fetch tunnels'
+      return {}
     } finally {
       loading.value = false
     }
@@ -91,7 +95,7 @@ export const useTunnelsStore = defineStore('tunnels', () => {
 
   async function getTunnel(id) {
     const res = await client.get(`/tunnels/${id}`)
-    return res.data
+    return res.data || {}
   }
 
   return {

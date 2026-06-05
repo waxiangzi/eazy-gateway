@@ -51,8 +51,8 @@ func (h *KeysHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-// HandleDelete handles DELETE /api/keys/{id} — deletes a key if no tunnel
-// references it. Returns 409 Conflict if any tunnel uses this key.
+// HandleDelete handles DELETE /api/keys/{id} — deletes a key if no host
+// references it. Returns 409 Conflict if any host uses this key.
 func (h *KeysHandler) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
@@ -60,21 +60,26 @@ func (h *KeysHandler) HandleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if any tunnel references this key
-	tunnels, err := h.db.ListTunnels()
+	// Check if any host references this key
+	hosts, err := h.db.ListHosts()
 	if err != nil {
-		log.Printf("ERROR: list tunnels: %v", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to check tunnel references"})
+		log.Printf("ERROR: list hosts: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to check host references"})
 		return
 	}
 
-	for _, t := range tunnels {
-		if t.KeyID == id {
-			writeJSON(w, http.StatusConflict, map[string]string{
-				"error": "key is referenced by tunnel \"" + t.Name + "\"",
-			})
-			return
+	var hostName string
+	for _, host := range hosts {
+		if host.KeyID == id {
+			hostName = host.Name
+			break
 		}
+	}
+	if hostName != "" {
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error": "key is referenced by host \"" + hostName + "\"",
+		})
+		return
 	}
 
 	if err := h.db.DeleteKey(id); err != nil {

@@ -1,4 +1,4 @@
-.PHONY: build build-web run docker-build clean
+.PHONY: build build-web run dev docker-build clean
 
 BINARY_NAME=tun-console
 BUILD_DIR=build
@@ -15,6 +15,10 @@ build: build-web
 run: build
 	./$(BUILD_DIR)/$(BINARY_NAME)
 
+dev:
+	@echo "Use 'just dev' for hot-reload development (requires just)"
+	@exit 1
+
 docker-build:
 	docker build -t $(BINARY_NAME) .
 
@@ -23,3 +27,5 @@ clean:
 	rm -rf web/node_modules/
 	rm -rf web/dist/
 	rm -rf cmd/tun-console/dist/
+	rm -rf tmp/
+	rm -f .air.toml

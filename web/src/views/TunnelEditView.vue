@@ -1,141 +1,101 @@
 <template>
   <div class="tunnel-edit-view">
-    <h1 class="page-title">{{ isEditMode ? 'Edit Tunnel' : 'Create Tunnel' }}</h1>
+    <h1 class="page-title">{{ isEditMode ? t('tunnel.edit') : t('tunnel.new') }}</h1>
 
-    <div v-if="isLoading" class="state-message">Loading…</div>
+    <div v-if="isLoading" class="state-message">{{ t('common.loading') }}</div>
     <div v-else-if="loadError" class="state-message error">{{ loadError }}</div>
+
+    <div v-else-if="hostsStore.loading && hostsStore.list.length === 0" class="state-message">
+      {{ t('common.loading') }}
+    </div>
+    <div v-else-if="hostsStore.list.length === 0" class="empty-state">
+      <p>{{ t('tunnel.form.noHostDesc') }}</p>
+      <RouterLink to="/hosts/new" class="btn-primary">{{ t('tunnel.form.goToHosts') }}</RouterLink>
+    </div>
 
     <form v-else class="tunnel-form" @submit.prevent="handleSubmit">
       <div class="form-group">
-        <label for="name">Name</label>
-        <input
-          id="name"
-          v-model="form.name"
-          type="text"
-          placeholder="Tunnel name"
-        />
+        <label for="name">{{ t('common.name') }}</label>
+        <input id="name" v-model="form.name" type="text" :placeholder="t('tunnel.form.namePlaceholder')" />
         <p v-if="errors.name" class="field-error">{{ errors.name }}</p>
       </div>
 
-      <div class="form-group">
-        <label for="type">Type</label>
-        <select id="type" v-model="form.type">
-          <option value="local">Local</option>
-          <option value="remote">Remote</option>
-          <option value="dynamic">Dynamic</option>
-        </select>
-        <p v-if="errors.type" class="field-error">{{ errors.type }}</p>
-      </div>
-
       <div class="form-row">
         <div class="form-group">
-          <label for="sshHost">SSH Host</label>
-          <input
-            id="sshHost"
-            v-model="form.sshHost"
-            type="text"
-            placeholder="e.g. 192.168.1.1"
-          />
-          <p v-if="errors.sshHost" class="field-error">{{ errors.sshHost }}</p>
+          <label for="type">
+            {{ t('common.type') }}
+            <TooltipIcon :text="t('tunnel.typeTooltip')" />
+          </label>
+          <select id="type" v-model="form.type">
+            <option value="local">{{ t('tunnel.types.local') }}</option>
+            <option value="remote">{{ t('tunnel.types.remote') }}</option>
+            <option value="dynamic">{{ t('tunnel.types.dynamic') }}</option>
+          </select>
+          <p v-if="errors.type" class="field-error">{{ errors.type }}</p>
         </div>
 
         <div class="form-group">
-          <label for="sshPort">SSH Port</label>
-          <input
-            id="sshPort"
-            v-model.number="form.sshPort"
-            type="number"
-            min="1"
-            max="65535"
-          />
-          <p v-if="errors.sshPort" class="field-error">{{ errors.sshPort }}</p>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="sshUser">SSH User</label>
-          <input
-            id="sshUser"
-            v-model="form.sshUser"
-            type="text"
-            placeholder="e.g. root"
-          />
-          <p v-if="errors.sshUser" class="field-error">{{ errors.sshUser }}</p>
-        </div>
-
-        <div class="form-group">
-          <label for="keyId">Key</label>
-          <select id="keyId" v-model="form.keyId">
-            <option value="" disabled>Select a key</option>
-            <option v-for="key in keysStore.list" :key="key.id" :value="key.id">
-              {{ key.name }}
+          <label for="hostId">{{ t('common.host') }}</label>
+          <select id="hostId" v-model="form.hostId">
+            <option value="" disabled>{{ t('tunnel.form.selectHost') }}</option>
+            <option v-for="host in hostsStore.list" :key="host.id" :value="host.id">
+              {{ host.name }}
             </option>
           </select>
-          <p v-if="errors.keyId" class="field-error">{{ errors.keyId }}</p>
+          <p v-if="errors.hostId" class="field-error">{{ errors.hostId }}</p>
         </div>
       </div>
 
-      <div v-if="form.type === 'local'" class="form-row">
-        <div class="form-group">
-          <label for="localAddr">Local Address</label>
-          <input
-            id="localAddr"
-            v-model="form.localAddr"
-            type="text"
-            placeholder="e.g. 127.0.0.1:8080"
-          />
+      <div class="form-row">
+        <div class="form-group form-group-narrow">
+          <label for="listenPort">
+            <template v-if="form.type === 'local'">{{ t('tunnel.form.localPortLabel') }}</template>
+            <template v-else-if="form.type === 'remote'">{{ t('tunnel.form.remotePortLabel') }}</template>
+            <template v-else>{{ t('tunnel.form.listenPortLabel') }}</template>
+            <TooltipIcon :text="portTooltipText" />
+          </label>
+          <input id="listenPort" v-model.number="form.listenPort" type="number" min="1" max="65535" :placeholder="form.type === 'remote' ? '9090' : '8080'" />
+          <p v-if="errors.listenPort" class="field-error">{{ errors.listenPort }}</p>
         </div>
-        <div class="form-group">
-          <label for="remoteAddr">Remote Address</label>
-          <input
-            id="remoteAddr"
-            v-model="form.remoteAddr"
-            type="text"
-            placeholder="e.g. 127.0.0.1:80"
-          />
+
+        <div class="form-group checkbox-group" v-if="form.type !== 'remote'">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="form.bindExternal" />
+            {{ t('tunnel.form.bindExternal') }}
+            <TooltipIcon :text="t('tunnel.form.bindExternalTooltip')" />
+          </label>
         </div>
       </div>
 
-      <div v-if="form.type === 'remote'" class="form-row">
+      <div v-if="form.type !== 'dynamic'" class="form-row">
         <div class="form-group">
-          <label for="remoteAddr">Remote Address</label>
-          <input
-            id="remoteAddr"
-            v-model="form.remoteAddr"
-            type="text"
-            placeholder="e.g. 0.0.0.0:8080"
-          />
+          <label for="targetHost">
+            <template v-if="form.type === 'local'">{{ t('tunnel.form.localTargetHostLabel') }}</template>
+            <template v-else>{{ t('tunnel.form.remoteTargetHostLabel') }}</template>
+            <TooltipIcon :text="targetHostTooltipText" />
+          </label>
+          <input id="targetHost" v-model="form.targetHost" type="text" :placeholder="targetHostPlaceholder" />
+          <p v-if="errors.targetHost" class="field-error">{{ errors.targetHost }}</p>
         </div>
-        <div class="form-group">
-          <label for="localAddr">Local Address</label>
-          <input
-            id="localAddr"
-            v-model="form.localAddr"
-            type="text"
-            placeholder="e.g. 127.0.0.1:80"
-          />
-        </div>
-      </div>
 
-      <div v-if="form.type === 'dynamic'" class="form-group">
-        <label for="dynamicAddr">Dynamic Address</label>
-        <input
-          id="dynamicAddr"
-          v-model="form.dynamicAddr"
-          type="text"
-          placeholder="e.g. 127.0.0.1:1080"
-        />
+        <div class="form-group form-group-narrow">
+          <label for="targetPort">
+            <template v-if="form.type === 'local'">{{ t('tunnel.form.localTargetPortLabel') }}</template>
+            <template v-else>{{ t('tunnel.form.remoteTargetPortLabel') }}</template>
+          </label>
+          <input id="targetPort" v-model.number="form.targetPort" type="number" min="1" max="65535" placeholder="80" />
+          <p v-if="errors.targetPort" class="field-error">{{ errors.targetPort }}</p>
+        </div>
       </div>
 
       <p v-if="submitError" class="error-message">{{ submitError }}</p>
 
       <div class="form-actions">
         <button type="button" class="btn-secondary" @click="handleCancel">
-          Cancel
+          {{ t('common.cancel') }}
         </button>
         <button type="submit" class="btn-primary" :disabled="isSubmitting">
-          {{ isSubmitting ? 'Saving…' : (isEditMode ? 'Update' : 'Create') }}
+          {{ isSubmitting ? t('common.saving') : (isEditMode ? t('common.update') : t('common.create')) }}
         </button>
       </div>
     </form>
@@ -145,13 +105,16 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import TooltipIcon from '../components/TooltipIcon.vue'
 import { useTunnelsStore } from '../stores/tunnels.js'
-import { useKeysStore } from '../stores/keys.js'
+import { useHostsStore } from '../stores/hosts.js'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const tunnelsStore = useTunnelsStore()
-const keysStore = useKeysStore()
+const hostsStore = useHostsStore()
 
 const isEditMode = computed(() => !!route.params.id)
 const isSubmitting = ref(false)
@@ -162,60 +125,72 @@ const loadError = ref('')
 const form = reactive({
   name: '',
   type: 'local',
-  sshHost: '',
-  sshPort: 22,
-  sshUser: '',
-  keyId: '',
-  localAddr: '',
-  remoteAddr: '',
-  dynamicAddr: '',
+  hostId: '',
+  listenPort: null,
+  targetHost: '',
+  targetPort: null,
+  bindExternal: false,
 })
 
 const errors = reactive({
   name: '',
   type: '',
-  sshHost: '',
-  sshPort: '',
-  sshUser: '',
-  keyId: '',
+  hostId: '',
+  listenPort: '',
+  targetHost: '',
+  targetPort: '',
 })
 
 function clearErrors() {
   errors.name = ''
   errors.type = ''
-  errors.sshHost = ''
-  errors.sshPort = ''
-  errors.sshUser = ''
-  errors.keyId = ''
+  errors.hostId = ''
+  errors.listenPort = ''
+  errors.targetHost = ''
+  errors.targetPort = ''
 }
+
+const portTooltipText = computed(() => {
+  if (form.type === 'local') return t('tunnel.form.localPortTooltip')
+  if (form.type === 'remote') return t('tunnel.form.remotePortTooltip')
+  return t('tunnel.form.dynamicPortTooltip')
+})
+
+const targetHostTooltipText = computed(() => {
+  if (form.type === 'local') return t('tunnel.form.localTargetHostTooltip')
+  return t('tunnel.form.remoteTargetHostTooltip')
+})
+
+const targetHostPlaceholder = computed(() => {
+  if (form.type === 'local') return t('tunnel.form.localTargetHostPlaceholder')
+  return t('tunnel.form.remoteTargetHostPlaceholder')
+})
 
 function validate() {
   clearErrors()
   let valid = true
 
   if (!form.name.trim()) {
-    errors.name = 'Name is required'
+    errors.name = t('validation.nameRequired')
     valid = false
   }
-
-  if (!form.sshHost.trim()) {
-    errors.sshHost = 'SSH Host is required'
+  if (!form.hostId) {
+    errors.hostId = t('validation.hostIdRequired')
     valid = false
   }
-
-  if (!form.sshPort || form.sshPort <= 0) {
-    errors.sshPort = 'SSH Port must be greater than 0'
+  if (!form.listenPort || form.listenPort <= 0) {
+    errors.listenPort = t('validation.listenPortInvalid')
     valid = false
   }
-
-  if (!form.sshUser.trim()) {
-    errors.sshUser = 'SSH User is required'
-    valid = false
-  }
-
-  if (!form.keyId) {
-    errors.keyId = 'Key is required'
-    valid = false
+  if (form.type !== 'dynamic') {
+    if (!form.targetHost.trim()) {
+      errors.targetHost = t('validation.targetHostRequired')
+      valid = false
+    }
+    if (!form.targetPort || form.targetPort <= 0) {
+      errors.targetPort = t('validation.targetPortInvalid')
+      valid = false
+    }
   }
 
   return valid
@@ -230,13 +205,11 @@ async function handleSubmit() {
     const payload = {
       name: form.name.trim(),
       type: form.type,
-      sshHost: form.sshHost.trim(),
-      sshPort: form.sshPort,
-      sshUser: form.sshUser.trim(),
-      keyId: form.keyId,
-      localAddr: form.localAddr.trim() || undefined,
-      remoteAddr: form.remoteAddr.trim() || undefined,
-      dynamicAddr: form.dynamicAddr.trim() || undefined,
+      hostId: form.hostId,
+      listenPort: Number(form.listenPort),
+      targetHost: form.targetHost,
+      targetPort: form.type === 'dynamic' ? 0 : Number(form.targetPort),
+      bindExternal: form.bindExternal,
     }
 
     if (isEditMode.value) {
@@ -247,25 +220,21 @@ async function handleSubmit() {
     router.push('/')
   } catch (err) {
     if (!err.response) {
-      submitError.value = 'Network error'
+      submitError.value = t('errors.network')
     } else {
-      submitError.value = err.response.data?.error || err.response.data?.message || 'Save failed'
+      submitError.value = err.response.data?.error || err.response.data?.message || t('errors.saveFailed')
     }
   } finally {
-    isSubmitting.value = false
+    isLoading.value = false
   }
 }
 
-function handleCancel() {
-  router.push('/')
-}
-
-// Reset conditional fields when type changes
 watch(() => form.type, (newType, oldType) => {
   if (newType !== oldType) {
-    form.localAddr = ''
-    form.remoteAddr = ''
-    form.dynamicAddr = ''
+    if (newType === 'dynamic') {
+      form.targetHost = ''
+      form.targetPort = null
+    }
   }
 })
 
@@ -274,36 +243,42 @@ onMounted(async () => {
   loadError.value = ''
 
   try {
-    // Load keys for dropdown
-    if (keysStore.list.length === 0) {
+    if (hostsStore.list.length === 0) {
       try {
-        await keysStore.fetchKeys()
+        await hostsStore.fetchHosts()
       } catch {
-        loadError.value = 'Failed to load SSH keys'
+        loadError.value = t('errors.loadFailed')
       }
     }
 
-    // Load tunnel data in edit mode
     if (isEditMode.value) {
-      const tunnel = await tunnelsStore.getTunnel(route.params.id)
+      const response = await tunnelsStore.getTunnel(route.params.id)
+      const tunnel = response.tunnel || response
       form.name = tunnel.name || ''
       form.type = tunnel.type || 'local'
-      form.sshHost = tunnel.sshHost || ''
-      form.sshPort = tunnel.sshPort || 22
-      form.sshUser = tunnel.sshUser || ''
-      form.keyId = tunnel.keyId || ''
-      form.localAddr = tunnel.localAddr || ''
-      form.remoteAddr = tunnel.remoteAddr || ''
-      form.dynamicAddr = tunnel.dynamicAddr || ''
+      form.hostId = tunnel.hostId || ''
+      form.listenPort = tunnel.listenPort || null
+      form.targetHost = tunnel.targetHost || ''
+      form.targetPort = tunnel.targetPort || null
+      form.bindExternal = tunnel.bindExternal || false
     }
   } catch (err) {
     if (!err.response) {
-      loadError.value = 'Network error'
+      loadError.value = t('errors.network')
     } else {
-      loadError.value = err.response.data?.error || err.response.data?.message || 'Failed to load tunnel'
+      loadError.value = err.response.data?.error || err.response.data?.message || t('errors.loadFailed')
     }
   } finally {
     isLoading.value = false
+  }
+})
+
+watch(() => form.type, (newType, oldType) => {
+  if (newType !== oldType) {
+    if (newType === 'dynamic') {
+      form.targetHost = ''
+      form.targetPort = null
+    }
   }
 })
 </script>
@@ -364,6 +339,30 @@ onMounted(async () => {
 .form-row {
   display: flex;
   gap: 1rem;
+}
+
+.form-group-narrow {
+  flex: 0 0 10rem;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 0.5rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #334155;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
 }
 
 .field-error {
@@ -428,5 +427,19 @@ onMounted(async () => {
 
 .state-message.error {
   color: #dc2626;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: #fff;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.empty-state p {
+  margin: 0 0 1.5rem;
+  color: #64748b;
+  font-size: 1rem;
 }
 </style>

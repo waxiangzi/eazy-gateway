@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/tun-console/tun-console/internal/db"
 	"github.com/tun-console/tun-console/internal/ssh"
@@ -26,15 +27,13 @@ func NewTunnelHandler(d *db.DB, engine *ssh.TunnelEngine) *TunnelHandler {
 
 // tunnelRequest is the JSON body accepted by Create and Update.
 type tunnelRequest struct {
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	SSHHost     string `json:"sshHost"`
-	SSHPort     int    `json:"sshPort"`
-	SSHUser     string `json:"sshUser"`
-	KeyID       string `json:"keyId"`
-	LocalAddr   string `json:"localAddr,omitempty"`
-	RemoteAddr  string `json:"remoteAddr,omitempty"`
-	DynamicAddr string `json:"dynamicAddr,omitempty"`
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	HostID       string `json:"hostId"`
+	ListenPort   int    `json:"listenPort"`
+	TargetHost   string `json:"targetHost,omitempty"`
+	TargetPort   int    `json:"targetPort"`
+	BindExternal bool   `json:"bindExternal"`
 }
 
 // validate checks that all required fields are present and valid.
@@ -47,25 +46,26 @@ func (h *TunnelHandler) validate(req *tunnelRequest) error {
 	default:
 		return fmt.Errorf("type must be one of: local, remote, dynamic")
 	}
-	if req.SSHHost == "" {
-		return fmt.Errorf("sshHost is required")
+	if req.HostID == "" {
+		return fmt.Errorf("hostId is required")
 	}
-	if req.SSHPort <= 0 {
-		return fmt.Errorf("sshPort must be greater than 0")
-	}
-	if req.SSHUser == "" {
-		return fmt.Errorf("sshUser is required")
-	}
-	if req.KeyID == "" {
-		return fmt.Errorf("keyId is required")
-	}
-	// Verify key exists
-	key, err := h.db.GetKey(req.KeyID)
+	host, err := h.db.GetHost(req.HostID)
 	if err != nil {
-		return fmt.Errorf("get key: %w", err)
+		return fmt.Errorf("get host: %w", err)
 	}
-	if key == nil {
-		return fmt.Errorf("key %q not found", req.KeyID)
+	if host == nil {
+		return fmt.Errorf("host %q not found", req.HostID)
+	}
+	if req.ListenPort <= 0 {
+		return fmt.Errorf("listenPort must be greater than 0")
+	}
+	if req.Type != "dynamic" {
+		if req.TargetHost == "" {
+			return fmt.Errorf("targetHost is required")
+		}
+		if req.TargetPort <= 0 {
+			return fmt.Errorf("targetPort must be greater than 0")
+		}
 	}
 	return nil
 }
@@ -73,32 +73,38 @@ func (h *TunnelHandler) validate(req *tunnelRequest) error {
 // toDBTunnel converts a tunnelRequest + ID into a db.TunnelConfig.
 func toDBTunnel(id string, req *tunnelRequest) *db.TunnelConfig {
 	return &db.TunnelConfig{
-		ID:          id,
-		Name:        req.Name,
-		Type:        db.TunnelType(req.Type),
-		SSHHost:     req.SSHHost,
-		SSHPort:     req.SSHPort,
-		SSHUser:     req.SSHUser,
-		KeyID:       req.KeyID,
-		LocalAddr:   req.LocalAddr,
-		RemoteAddr:  req.RemoteAddr,
-		DynamicAddr: req.DynamicAddr,
+		ID:           id,
+		Name:         req.Name,
+		Type:         db.TunnelType(req.Type),
+		HostID:       req.HostID,
+		ListenPort:   req.ListenPort,
+		TargetHost:   req.TargetHost,
+		TargetPort:   req.TargetPort,
+		BindExternal: req.BindExternal,
 	}
 }
 
-// toSSHConfig converts a db.TunnelConfig into an ssh.Config for the engine.
-func toSSHConfig(tc *db.TunnelConfig) *ssh.Config {
-	return &ssh.Config{
-		ID:          tc.ID,
-		Name:        tc.Name,
-		Type:        string(tc.Type),
-		SSHHost:     tc.SSHHost,
-		SSHPort:     tc.SSHPort,
-		SSHUser:     tc.SSHUser,
-		LocalAddr:   tc.LocalAddr,
-		RemoteAddr:  tc.RemoteAddr,
-		DynamicAddr: tc.DynamicAddr,
+// toSSHConfig converts a db.TunnelConfig and its host into an ssh.Config.
+func toSSHConfig(tc *db.TunnelConfig, host *db.Host) *ssh.Config {
+	cfg := &ssh.Config{
+		ID:      tc.ID,
+		Name:    tc.Name,
+		Type:    string(tc.Type),
+		SSHHost: host.Host,
+		SSHPort: host.Port,
+		SSHUser: host.User,
 	}
+	switch tc.Type {
+	case db.TunnelTypeLocal:
+		cfg.LocalAddr = tc.ListenAddr()
+		cfg.RemoteAddr = tc.TargetAddr()
+	case db.TunnelTypeRemote:
+		cfg.RemoteAddr = tc.ListenAddr()
+		cfg.LocalAddr = tc.TargetAddr()
+	case db.TunnelTypeDynamic:
+		cfg.DynamicAddr = tc.ListenAddr()
+	}
+	return cfg
 }
 
 // List handles GET /api/tunnels — returns all tunnel configs with runtime status.
@@ -119,6 +125,18 @@ func (h *TunnelHandler) List(w http.ResponseWriter, r *http.Request) {
 		tunnels = []*db.TunnelConfig{}
 	}
 
+	hosts, err := h.db.ListHosts()
+	if err != nil {
+		log.Printf("ERROR: list hosts: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+
+	hostMap := make(map[string]*db.Host, len(hosts))
+	for _, host := range hosts {
+		hostMap[host.ID] = host
+	}
+
 	type item struct {
 		db.TunnelConfig
 		Status string `json:"status"`
@@ -133,7 +151,10 @@ func (h *TunnelHandler) List(w http.ResponseWriter, r *http.Request) {
 		items = append(items, item{TunnelConfig: *t, Status: s})
 	}
 
-	writeJSON(w, http.StatusOK, items)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"items": items,
+		"hosts": hostMap,
+	})
 }
 
 // Get handles GET /api/tunnels/{id} — returns a single tunnel config with runtime status.
@@ -160,17 +181,15 @@ func (h *TunnelHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type response struct {
-		db.TunnelConfig
-		Status string `json:"status"`
-	}
-
 	status := ssh.StatusDisconnected
 	if h.engine != nil {
 		status = h.engine.Status(id)
 	}
 
-	writeJSON(w, http.StatusOK, response{TunnelConfig: *tc, Status: status})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"tunnel": tc,
+		"status": status,
+	})
 }
 
 // Status handles GET /api/tunnels/{id}/status — returns tunnel config with runtime status.
@@ -197,17 +216,72 @@ func (h *TunnelHandler) Status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type response struct {
-		db.TunnelConfig
-		Status string `json:"status"`
-	}
-
 	status := ssh.StatusDisconnected
 	if h.engine != nil {
 		status = h.engine.Status(id)
 	}
 
-	writeJSON(w, http.StatusOK, response{TunnelConfig: *tc, Status: status})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"tunnel": tc,
+		"status": status,
+	})
+}
+
+func (h *TunnelHandler) RestoreEnabled() {
+	if h.engine == nil {
+		return
+	}
+
+	tunnels, err := h.db.ListTunnels()
+	if err != nil {
+		log.Printf("ERROR: list tunnels for restore: %v", err)
+		return
+	}
+
+	hosts, err := h.db.ListHosts()
+	if err != nil {
+		log.Printf("ERROR: list hosts for restore: %v", err)
+		return
+	}
+	hostMap := make(map[string]*db.Host, len(hosts))
+	for _, host := range hosts {
+		hostMap[host.ID] = host
+	}
+
+	for _, tc := range tunnels {
+		if !tc.Enabled {
+			continue
+		}
+			s := h.engine.Status(tc.ID)
+		if s == ssh.StatusConnected || s == ssh.StatusConnecting {
+			log.Printf("INFO: tunnel %q (%s) already %s, skipping restore", tc.ID, tc.Name, s)
+			continue
+		}
+		host := hostMap[tc.HostID]
+		if host == nil {
+			log.Printf("WARN: tunnel %q enabled but host %q not found, skipping", tc.ID, tc.HostID)
+			continue
+		}
+		key, err := h.db.GetKey(host.KeyID)
+		if err != nil || key == nil {
+			log.Printf("WARN: tunnel %q enabled but key for host %q not found: %v", tc.ID, host.ID, err)
+			continue
+		}
+		keyPEM, err := os.ReadFile(key.PrivateKeyPath)
+		if err != nil {
+			log.Printf("WARN: tunnel %q enabled but key file unreadable: %v", tc.ID, err)
+			continue
+		}
+		if err := h.engine.Register(toSSHConfig(tc, host), keyPEM); err != nil {
+			log.Printf("WARN: tunnel %q register failed on restore: %v", tc.ID, err)
+			continue
+		}
+		if err := h.engine.Start(tc.ID); err != nil {
+			log.Printf("WARN: tunnel %q start failed on restore: %v", tc.ID, err)
+			continue
+		}
+		log.Printf("INFO: restored tunnel %q (%s)", tc.ID, tc.Name)
+	}
 }
 
 // Create handles POST /api/tunnels — creates a new tunnel config.
@@ -276,6 +350,7 @@ func (h *TunnelHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	tc := toDBTunnel(id, &req)
 	tc.CreatedAt = existing.CreatedAt // preserve original creation time
+	tc.Enabled = existing.Enabled       // preserve enabled state
 
 	if err := h.db.UpdateTunnel(tc); err != nil {
 		log.Printf("ERROR: update tunnel %q: %v", id, err)
@@ -334,12 +409,9 @@ func (h *TunnelHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// Start handles POST /api/tunnels/{id}/start. It loads the tunnel config and
-// its SSH key, reads the private key from the filesystem path stored on the
-// key, registers both with the engine, and brings the tunnel online
-// (establishing the configured forwarding). Returns 200 on success, 404 if the
-// tunnel is unknown, and 500 when the engine is unavailable or the
-// connection/forwarding cannot start.
+// Start handles POST /api/tunnels/{id}/start. It loads the tunnel config,
+// resolves its host, reads the host's key, registers both with the engine,
+// and brings the tunnel online.
 func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -368,14 +440,25 @@ func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, err := h.db.GetKey(tc.KeyID)
+	host, err := h.db.GetHost(tc.HostID)
 	if err != nil {
-		log.Printf("ERROR: get key %q for tunnel %q: %v", tc.KeyID, id, err)
+		log.Printf("ERROR: get host %q for tunnel %q: %v", tc.HostID, id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	if host == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "tunnel host not found"})
+		return
+	}
+
+	key, err := h.db.GetKey(host.KeyID)
+	if err != nil {
+		log.Printf("ERROR: get key %q for host %q: %v", host.KeyID, host.ID, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
 	if key == nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "tunnel key not found"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "host key not found"})
 		return
 	}
 
@@ -386,16 +469,26 @@ func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.engine.Register(toSSHConfig(tc), keyPEM); err != nil {
+	if err := h.engine.Register(toSSHConfig(tc, host), keyPEM); err != nil {
 		log.Printf("ERROR: register tunnel %q: %v", id, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
 
 	if err := h.engine.Start(id); err != nil {
+		if strings.Contains(err.Error(), "already running") {
+			log.Printf("INFO: tunnel %q start requested but already running", id)
+			writeJSON(w, http.StatusOK, map[string]string{"status": "already running"})
+			return
+		}
 		log.Printf("ERROR: start tunnel %q: %v", id, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
+	}
+
+	tc.Enabled = true
+	if err := h.db.UpdateTunnel(tc); err != nil {
+		log.Printf("WARN: set tunnel %q enabled=true: %v", id, err)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "started"})
@@ -403,8 +496,6 @@ func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
 
 // Stop handles POST /api/tunnels/{id}/stop. It validates the tunnel exists and
 // delegates to the engine, which tears down forwarding and the SSH connection.
-// Returns 200 on success, 404 if the tunnel is unknown, and 500 when the
-// engine is unavailable or the tunnel is not running.
 func (h *TunnelHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -437,6 +528,11 @@ func (h *TunnelHandler) Stop(w http.ResponseWriter, r *http.Request) {
 		log.Printf("ERROR: stop tunnel %q: %v", id, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
+	}
+
+	tc.Enabled = false
+	if err := h.db.UpdateTunnel(tc); err != nil {
+		log.Printf("WARN: set tunnel %q enabled=false: %v", id, err)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})

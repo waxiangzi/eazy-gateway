@@ -1,14 +1,21 @@
 <template>
   <div class="keys-view">
-    <h1 class="page-title">SSH Keys</h1>
+    <h1 class="page-title">{{ t('key.title') }}</h1>
 
     <section class="list-section">
-      <h2 class="section-title">Your Keys</h2>
+      <h2 class="section-title">
+        {{ t('key.listTitle') }}
+        <TooltipIcon :text="t('key.tooltip')" />
+      </h2>
 
-      <div v-if="keys.isLoading" class="loading-text">Loading keys…</div>
+      <div v-if="keys.isLoading" class="loading-text">{{ t('key.loading') }}</div>
+
+      <div v-else-if="keys.error" class="empty-state error">
+        <p>{{ keys.error }}</p>
+      </div>
 
       <div v-else-if="!keys.hasKeys" class="empty-state">
-        <p>No SSH keys found.</p>
+        <p>{{ t('key.empty') }}</p>
       </div>
 
       <div v-else class="key-list">
@@ -23,13 +30,22 @@
             <span v-if="key.publicKey" class="key-public">{{ key.publicKey.trim() }}</span>
             <span class="key-date">{{ formatDate(key.createdAt) }}</span>
           </div>
-          <button
-            class="btn-danger"
-            :disabled="keys.isDeleting"
-            @click="handleDelete(key.id, key.name)"
-          >
-            Delete
-          </button>
+          <div class="key-actions">
+            <button
+              v-if="key.publicKey"
+              class="btn-copy"
+              @click="copyPublicKey(key.publicKey)"
+            >
+              {{ t('common.copy') }}
+            </button>
+            <button
+              class="btn-danger"
+              :disabled="keys.isDeleting"
+              @click="handleDelete(key.id, key.name)"
+            >
+              {{ t('common.delete') }}
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -38,8 +54,11 @@
 
 <script setup>
 import { onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import TooltipIcon from '../components/TooltipIcon.vue'
 import { useKeysStore } from '../stores/keys.js'
 
+const { t } = useI18n()
 const keys = useKeysStore()
 
 function formatDate(ts) {
@@ -49,11 +68,34 @@ function formatDate(ts) {
 }
 
 async function handleDelete(id, name) {
-  const confirmed = window.confirm(`Delete key "${name}"?`)
+  const confirmed = window.confirm(t('key.deleteConfirm', { name }))
   if (!confirmed) return
   const ok = await keys.deleteKey(id)
   if (ok) {
     await keys.fetchKeys()
+  }
+}
+
+async function copyPublicKey(text) {
+  const value = text.trim()
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(value)
+    } else {
+      // Fallback for non-secure contexts (http:// LAN IPs)
+      const ta = document.createElement('textarea')
+      ta.value = value
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+      if (!ok) throw new Error('execCommand copy failed')
+    }
+    alert(t('key.copySuccess'))
+  } catch {
+    alert(t('key.copyError'))
   }
 }
 
@@ -80,6 +122,9 @@ onMounted(() => {
 }
 
 .section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   margin: 0 0 1rem;
   font-size: 1.125rem;
   font-weight: 600;
@@ -113,6 +158,12 @@ onMounted(() => {
 
 .empty-state p {
   margin: 0;
+}
+
+.empty-state.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
 }
 
 .key-list {
@@ -158,8 +209,30 @@ onMounted(() => {
   color: #64748b;
 }
 
-.btn-danger {
+.key-actions {
+  display: flex;
+  gap: 0.5rem;
   flex-shrink: 0;
+  margin-left: 1rem;
+}
+
+.btn-copy {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.375rem;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-copy:hover {
+  background: #e2e8f0;
+}
+
+.btn-danger {
   padding: 0.375rem 0.75rem;
   border: 1px solid #fecaca;
   border-radius: 0.375rem;

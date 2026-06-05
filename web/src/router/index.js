@@ -14,6 +14,16 @@ const routes = [
     component: () => import('../views/DashboardView.vue'),
   },
   {
+    path: '/hosts',
+    name: 'Hosts',
+    component: () => import('../views/HostsView.vue'),
+  },
+  {
+    path: '/hosts/:id',
+    name: 'HostEdit',
+    component: () => import('../views/HostEditView.vue'),
+  },
+  {
     path: '/tunnels',
     name: 'Tunnels',
     component: () => import('../views/TunnelEditView.vue'),

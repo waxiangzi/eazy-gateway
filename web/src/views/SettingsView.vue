@@ -1,29 +1,29 @@
 <template>
   <div class="settings-view">
-    <h1 class="settings-title">Settings</h1>
+    <h1 class="settings-title">{{ t('settings.title') }}</h1>
 
     <form class="settings-form" @submit.prevent="handleSubmit">
-      <h2 class="form-section-title">Change Password</h2>
+      <h2 class="form-section-title">{{ t('settings.changePassword') }}</h2>
 
       <div class="form-group">
-        <label for="old-password">Old Password</label>
+        <label for="old-password">{{ t('settings.oldPassword') }}</label>
         <input
           id="old-password"
           v-model="oldPassword"
           type="password"
-          placeholder="Enter current password"
+          :placeholder="t('settings.oldPasswordPlaceholder')"
           required
           autocomplete="current-password"
         />
       </div>
 
       <div class="form-group">
-        <label for="new-password">New Password</label>
+        <label for="new-password">{{ t('settings.newPassword') }}</label>
         <input
           id="new-password"
           v-model="newPassword"
           type="password"
-          placeholder="Enter new password"
+          :placeholder="t('settings.newPasswordPlaceholder')"
           required
           autocomplete="new-password"
         />
@@ -31,12 +31,12 @@
       </div>
 
       <div class="form-group">
-        <label for="confirm-password">Confirm New Password</label>
+        <label for="confirm-password">{{ t('settings.confirmPassword') }}</label>
         <input
           id="confirm-password"
           v-model="confirmPassword"
           type="password"
-          placeholder="Confirm new password"
+          :placeholder="t('settings.confirmPasswordPlaceholder')"
           required
           autocomplete="new-password"
         />
@@ -47,7 +47,7 @@
       <p v-if="successMessage" class="success-message">{{ successMessage }}</p>
 
       <button type="submit" class="submit-button" :disabled="isLoading">
-        {{ isLoading ? 'Updating…' : 'Update Password' }}
+        {{ isLoading ? t('settings.updating') : t('settings.update') }}
       </button>
     </form>
   </div>
@@ -56,9 +56,11 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth.js'
 import client from '../api/client.js'
 
+const { t } = useI18n()
 const oldPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
@@ -71,14 +73,14 @@ const router = useRouter()
 
 const newPasswordError = computed(() => {
   if (newPassword.value && newPassword.value.length < 8) {
-    return 'Password must be at least 8 characters'
+    return t('settings.errors.passwordTooShort')
   }
   return ''
 })
 
 const confirmError = computed(() => {
   if (confirmPassword.value && confirmPassword.value !== newPassword.value) {
-    return 'Passwords do not match'
+    return t('settings.errors.passwordMismatch')
   }
   return ''
 })
@@ -88,17 +90,17 @@ async function handleSubmit() {
   successMessage.value = ''
 
   if (!oldPassword.value || !newPassword.value || !confirmPassword.value) {
-    serverError.value = 'All fields are required'
+    serverError.value = t('settings.errors.required')
     return
   }
 
   if (newPassword.value.length < 8) {
-    serverError.value = 'New password must be at least 8 characters'
+    serverError.value = t('settings.errors.tooShort')
     return
   }
 
   if (newPassword.value !== confirmPassword.value) {
-    serverError.value = 'New password and confirmation do not match'
+    serverError.value = t('settings.errors.mismatch')
     return
   }
 
@@ -113,21 +115,21 @@ async function handleSubmit() {
     oldPassword.value = ''
     newPassword.value = ''
     confirmPassword.value = ''
-    successMessage.value = 'Password updated successfully. Logging out…'
+    successMessage.value = t('settings.success')
 
     await auth.logout()
     router.push('/login')
   } catch (err) {
     if (!err.response) {
-      serverError.value = 'Network error, please try again'
+      serverError.value = t('settings.errors.network')
     } else if (err.response.status === 403) {
-      serverError.value = 'Current password is incorrect'
+      serverError.value = t('settings.errors.wrongCurrent')
     } else if (err.response.status === 400) {
-      serverError.value = err.response.data?.message || 'Invalid request'
+      serverError.value = err.response.data?.message || t('settings.errors.required')
     } else if (err.response.status === 500) {
-      serverError.value = 'Server error, please try again'
+      serverError.value = t('settings.errors.server')
     } else {
-      serverError.value = err.response.data?.message || 'An unexpected error occurred'
+      serverError.value = err.response.data?.message || t('settings.errors.unexpected')
     }
   } finally {
     isLoading.value = false

@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
+	"strconv"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -21,19 +23,34 @@ const (
 
 // TunnelConfig holds the configuration for a single SSH tunnel.
 type TunnelConfig struct {
-	ID          string     `json:"id"`
-	Name        string     `json:"name"`
-	Type        TunnelType `json:"type"`
-	SSHHost     string     `json:"sshHost"`
-	SSHPort     int        `json:"sshPort"`
-	SSHUser     string     `json:"sshUser"`
-	KeyID       string     `json:"keyId"`
-	LocalAddr   string     `json:"localAddr,omitempty"`
-	RemoteAddr  string     `json:"remoteAddr,omitempty"`
-	DynamicAddr string     `json:"dynamicAddr,omitempty"`
-	Enabled     bool       `json:"enabled"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	UpdatedAt   time.Time  `json:"updatedAt"`
+	ID           string     `json:"id"`
+	Name         string     `json:"name"`
+	Type         TunnelType `json:"type"`
+	HostID       string     `json:"hostId"`
+	ListenPort   int        `json:"listenPort"`
+	TargetHost   string     `json:"targetHost,omitempty"`
+	TargetPort   int        `json:"targetPort"`
+	BindExternal bool       `json:"bindExternal"`
+	Enabled      bool       `json:"enabled"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	UpdatedAt    time.Time  `json:"updatedAt"`
+}
+
+// ListenAddr returns the bind address for this tunnel based on BindExternal.
+func (t *TunnelConfig) ListenAddr() string {
+	host := "127.0.0.1"
+	if t.BindExternal {
+		host = "0.0.0.0"
+	}
+	return net.JoinHostPort(host, strconv.Itoa(t.ListenPort))
+}
+
+// TargetAddr returns the target address for local/remote forwarding.
+func (t *TunnelConfig) TargetAddr() string {
+	if t.TargetHost == "" {
+		return ""
+	}
+	return net.JoinHostPort(t.TargetHost, strconv.Itoa(t.TargetPort))
 }
 
 // generateID returns a random hex string (32 hex chars = 128 bits).

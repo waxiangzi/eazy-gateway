@@ -9,7 +9,8 @@ import (
 
 // Bucket names
 var (
-	bucketTunnels = []byte("tunnels")
+	bucketTunnels = []byte("tunnels_v2")
+	bucketHosts   = []byte("hosts")
 	bucketKeys    = []byte("keys")
 	bucketAdmin   = []byte("admin")
 )
@@ -37,7 +38,7 @@ func Open(path string) (*DB, error) {
 // initBuckets creates the required buckets if they do not already exist.
 func (db *DB) initBuckets() error {
 	return db.Update(func(tx *bolt.Tx) error {
-		for _, name := range [][]byte{bucketTunnels, bucketKeys, bucketAdmin} {
+		for _, name := range [][]byte{bucketTunnels, bucketHosts, bucketKeys, bucketAdmin} {
 			if _, err := tx.CreateBucketIfNotExists(name); err != nil {
 				return fmt.Errorf("create bucket %q: %w", string(name), err)
 			}
