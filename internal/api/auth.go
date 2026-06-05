@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"math/big"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -87,6 +88,14 @@ func randomToken() (string, error) {
 		return "", fmt.Errorf("random token: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func extractBearerToken(r *http.Request) string {
+	h := r.Header.Get("Authorization")
+	if !strings.HasPrefix(h, "Bearer ") {
+		return ""
+	}
+	return strings.TrimPrefix(h, "Bearer ")
 }
 
 // generatePassword creates a random 16-character alphanumeric password.
@@ -218,7 +227,7 @@ func LoginHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 			MaxAge:   int(sessionMaxAge.Seconds()),
 		})
 
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "token": token})
 	}
 }
 
@@ -233,6 +242,10 @@ func LogoutHandler(sessions *SessionStore) http.HandlerFunc {
 		cookie, err := r.Cookie(cookieName)
 		if err == nil && cookie.Value != "" {
 			sessions.Delete(cookie.Value)
+		}
+
+		if bt := extractBearerToken(r); bt != "" {
+			sessions.Delete(bt)
 		}
 
 		http.SetCookie(w, &http.Cookie{
@@ -258,12 +271,17 @@ func MeHandler(sessions *SessionStore) http.HandlerFunc {
 		}
 
 		cookie, err := r.Cookie(cookieName)
-		if err != nil || cookie.Value == "" || !sessions.Get(cookie.Value) {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		if err == nil && cookie.Value != "" && sessions.Get(cookie.Value) {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 			return
 		}
 
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		if bt := extractBearerToken(r); bt != "" && sessions.Get(bt) {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+			return
+		}
+
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 	}
 }
 
@@ -289,12 +307,17 @@ func (m *AuthMiddleware) Wrap(next http.Handler) http.Handler {
 		}
 
 		cookie, err := r.Cookie(cookieName)
-		if err != nil || cookie.Value == "" || !m.sessions.Get(cookie.Value) {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		if err == nil && cookie.Value != "" && m.sessions.Get(cookie.Value) {
+			next.ServeHTTP(w, r)
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		if bt := extractBearerToken(r); bt != "" && m.sessions.Get(bt) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 	})
 }
 

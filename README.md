@@ -15,12 +15,14 @@ A web-based SSH tunnel manager built with Go and Vue 3.
 Build the frontend and Go binary into a single static binary:
 
 ```bash
-make build
+just build
 ```
 
 This runs:
 1. `cd web && npm run build` — builds the Vue SPA into `web/dist`
 2. `go build -tags embed -o build/tun-console ./cmd/tun-console` — embeds `web/dist` into the Go binary
+
+> **注意：** 项目已从 `make` 迁移至 `just`。如有旧习惯，`just` 接受与 `make` 相同的参数风格（如 `just build`）。
 
 ## Run
 
