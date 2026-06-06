@@ -156,6 +156,12 @@ func runServer(port int, dataDir string, secureCookies bool) {
 		os.Exit(1)
 	}
 
+	if adminPassword != "" {
+		logger.Info("admin password generated", "password", adminPassword)
+		pwFile := filepath.Join(dataDir, "initial-password.txt")
+		_ = os.WriteFile(pwFile, []byte(adminPassword+"\n"), 0o600)
+	}
+
 	if err := EnsureDefaultKey(d, dataDir); err != nil {
 		logger.Error("ensure default key", "error", err)
 		os.Exit(1)

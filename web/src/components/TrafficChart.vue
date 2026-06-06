@@ -57,10 +57,16 @@ function initChart() {
       {
         space: 60,
         values: [[3600, '{HH}:{mm}']],
+        stroke: '#94a3b8',
+        grid: { stroke: 'rgba(148,163,184,0.12)', width: 1 },
+        ticks: { stroke: 'rgba(148,163,184,0.2)', width: 1, size: 4 },
       },
       {
         size: 60,
         values: (u, vals) => vals.map((v) => formatBytes(v)),
+        stroke: '#94a3b8',
+        grid: { stroke: 'rgba(148,163,184,0.12)', width: 1 },
+        ticks: { stroke: 'rgba(148,163,184,0.2)', width: 1, size: 4 },
       },
     ],
       series: [

@@ -14,7 +14,9 @@ app.use(i18n)
 
 const auth = useAuthStore()
 const settings = useSettingsStore()
-auth.checkAuth().finally(() => {
-  settings.fetchSettings()
+
+;(async () => {
+  await auth.checkAuth()
+  await settings.fetchSettings()
   app.mount('#app')
-})
+})()
