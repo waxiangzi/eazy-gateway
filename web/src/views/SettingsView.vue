@@ -6,39 +6,45 @@
     <section class="setting-section">
       <h2 class="section-heading">{{ t('settings.system.title') }}</h2>
 
-      <div class="inline-setting">
-        <label for="app-name">{{ t('settings.appNameLabel') }}</label>
-        <input
-          id="app-name"
-          v-model="appName"
-          type="text"
-          :placeholder="t('settings.appNamePlaceholder')"
-          @blur="handleAppNameBlur"
-          @keydown.enter="handleAppNameBlur"
-        />
-        <span v-if="appNameLoading" class="save-hint saving">{{ t('settings.system.saving') }}</span>
-        <span v-else-if="appNameSuccess" class="save-hint saved">
-          {{ appNameSaved ? '✓ ' + t('settings.system.saved') : '' }}
-        </span>
-        <span v-else-if="appNameError" class="save-hint error">{{ appNameError }}</span>
-      </div>
+      <div class="inline-settings-card">
+        <div class="inline-setting">
+          <label for="app-name">{{ t('settings.appNameLabel') }}</label>
+          <div class="inline-field">
+            <input
+              id="app-name"
+              v-model="appName"
+              type="text"
+              :placeholder="t('settings.appNamePlaceholder')"
+              @blur="handleAppNameBlur"
+              @keydown.enter="handleAppNameBlur"
+            />
+            <span v-if="appNameLoading" class="save-hint saving">{{ t('settings.system.saving') }}</span>
+            <span v-else-if="appNameSuccess && appNameSaved" class="save-hint saved">
+              ✓ {{ t('settings.system.saved') }}
+            </span>
+            <span v-else-if="appNameError" class="save-hint error">{{ appNameError }}</span>
+          </div>
+        </div>
 
-      <div class="inline-setting">
-        <label for="trend-hours">{{ t('settings.trafficTrendHoursLabel') }}</label>
-        <select
-          id="trend-hours"
-          v-model="trafficTrendHours"
-          @change="handleTrendHoursChange"
-        >
-          <option v-for="h in [1, 2, 3, 6, 12, 24]" :key="h" :value="h">
-            {{ h }} {{ t('settings.trafficTrendHoursUnit') }}
-          </option>
-        </select>
-        <span v-if="trendHoursLoading" class="save-hint saving">{{ t('settings.system.saving') }}</span>
-        <span v-else-if="trendHoursSuccess" class="save-hint saved">
-          ✓ {{ t('settings.system.saved') }}
-        </span>
-        <span v-else-if="trendHoursError" class="save-hint error">{{ trendHoursError }}</span>
+        <div class="inline-setting">
+          <label for="trend-hours">{{ t('settings.trafficTrendHoursLabel') }}</label>
+          <div class="inline-field">
+            <select
+              id="trend-hours"
+              v-model="trafficTrendHours"
+              @change="handleTrendHoursChange"
+            >
+              <option v-for="h in [1, 2, 3, 6, 12, 24]" :key="h" :value="h">
+                {{ h }} {{ t('settings.trafficTrendHoursUnit') }}
+              </option>
+            </select>
+            <span v-if="trendHoursLoading" class="save-hint saving">{{ t('settings.system.saving') }}</span>
+            <span v-else-if="trendHoursSuccess" class="save-hint saved">
+              ✓ {{ t('settings.system.saved') }}
+            </span>
+            <span v-else-if="trendHoursError" class="save-hint error">{{ trendHoursError }}</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -270,83 +276,128 @@ async function handleTrendHoursChange() {
   margin: 0 0 1.5rem;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
 }
 
 .section-heading {
   font-size: 0.875rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   color: #64748b;
   margin: 0 0 1rem;
 }
 
 .section-divider {
   border: none;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid rgba(56, 189, 248, 0.1);
   margin: 2rem 0;
 }
 
 /* 系统配置：轻量行内编辑 */
+.inline-settings-card {
+  background: rgba(16, 24, 48, 0.65);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 1rem 1.25rem;
+  max-width: 32rem;
+}
+
 .inline-setting {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  max-width: 28rem;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.75rem 0;
+}
+
+.inline-setting + .inline-setting {
+  border-top: 1px solid rgba(56, 189, 248, 0.08);
 }
 
 .inline-setting label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #334155;
-  min-width: 5rem;
+  color: #94a3b8;
+  width: 7rem;
+  flex-shrink: 0;
+  padding-top: 0.5rem;
+  line-height: 1.5;
 }
 
-.inline-setting input {
+.inline-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   flex: 1;
-  min-width: 12rem;
+  min-width: 0;
+}
+
+.inline-field input,
+.inline-field select {
+  flex: 1;
+  min-width: 0;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgba(56, 189, 248, 0.2);
   border-radius: 0.375rem;
   font-size: 1rem;
-  color: #0f172a;
-  background: #fff;
+  color: #e2e8f0;
+  background: rgba(10, 14, 26, 0.8);
   box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  height: 2.25rem;
 }
 
-.inline-setting input:focus {
+.inline-field input:focus,
+.inline-field select:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15), 0 0 8px rgba(56, 189, 248, 0.2);
+}
+
+.inline-field select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2rem;
+  cursor: pointer;
 }
 
 .save-hint {
   font-size: 0.875rem;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .save-hint.saving {
-  color: #64748b;
+  color: #94a3b8;
 }
 
 .save-hint.saved {
-  color: #16a34a;
+  color: #34d399;
 }
 
 .save-hint.error {
-  color: #dc2626;
+  color: #f87171;
 }
 
 /* 安全设置：完整表单 */
 .settings-form {
   max-width: 28rem;
   padding: 1.5rem;
-  background: #ffffff;
+  background: rgba(16, 24, 48, 0.65);
   border-radius: 0.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  border-left: 4px solid #f59e0b;
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-left: 4px solid rgba(251, 191, 36, 0.5);
 }
 
 .form-group {
@@ -358,42 +409,44 @@ async function handleTrendHoursChange() {
   margin-bottom: 0.25rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #334155;
+  color: #94a3b8;
 }
 
 .form-group input {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgba(56, 189, 248, 0.2);
   border-radius: 0.375rem;
   font-size: 1rem;
-  color: #0f172a;
-  background: #fff;
+  color: #e2e8f0;
+  background: rgba(10, 14, 26, 0.8);
   box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #f59e0b;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+  border-color: rgba(251, 191, 36, 0.55);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12), 0 0 8px rgba(251, 191, 36, 0.15);
 }
 
 .field-error {
   margin: 0.25rem 0 0;
-  color: #dc2626;
+  color: #f87171;
   font-size: 0.875rem;
 }
 
 .error-message {
   margin: 0 0 1rem;
-  color: #dc2626;
+  color: #f87171;
   font-size: 0.875rem;
   text-align: center;
 }
 
 .success-message {
   margin: 0 0 1rem;
-  color: #16a34a;
+  color: #34d399;
   font-size: 0.875rem;
   text-align: center;
 }
@@ -403,30 +456,44 @@ async function handleTrendHoursChange() {
   padding: 0.625rem;
   border: none;
   border-radius: 0.375rem;
-  background: #0f172a;
+  background: linear-gradient(135deg, rgba(56,189,248,0.9), rgba(14,165,233,0.9));
   color: #fff;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.2s;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.15);
 }
 
 .submit-button:hover:not(:disabled) {
-  background: #1e293b;
+  background: linear-gradient(135deg, rgba(56,189,248,1), rgba(14,165,233,1));
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+  transform: translateY(-1px);
 }
 
 .submit-button:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 @media (max-width: 480px) {
   .inline-setting {
     flex-direction: column;
-    align-items: flex-start;
+    gap: 0.375rem;
   }
-  .inline-setting input {
+  .inline-setting label {
+    width: auto;
+    padding-top: 0;
+  }
+  .inline-field {
     width: 100%;
+    flex-wrap: wrap;
+  }
+  .inline-field input,
+  .inline-field select {
+    width: 100%;
+    flex: none;
   }
 }
 </style>

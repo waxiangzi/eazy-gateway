@@ -279,14 +279,19 @@ onMounted(async () => {
   margin: 0 0 1.5rem;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
 }
 
 .host-form {
-  background: #ffffff;
+  background: rgba(16, 24, 48, 0.65);
   padding: 1.5rem;
   border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .form-group {
@@ -302,37 +307,39 @@ onMounted(async () => {
   margin-bottom: 0.375rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #334155;
+  color: #94a3b8;
 }
 
 .form-group input,
 .form-group select {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgba(56, 189, 248, 0.2);
   border-radius: 0.375rem;
   font-size: 1rem;
-  color: #0f172a;
-  background: #fff;
+  color: #e2e8f0;
+  background: rgba(10, 14, 26, 0.8);
   box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15), 0 0 8px rgba(56, 189, 248, 0.2);
 }
 
 .field-error {
   margin: 0.375rem 0 0;
-  color: #dc2626;
+  color: #f87171;
   font-size: 0.875rem;
 }
 
 .error-message {
   margin: 0 0 1rem;
-  color: #dc2626;
+  color: #f87171;
   font-size: 0.875rem;
 }
 
@@ -342,11 +349,11 @@ onMounted(async () => {
 }
 
 .test-message.success {
-  color: #16a34a;
+  color: #34d399;
 }
 
 .test-message.error {
-  color: #dc2626;
+  color: #f87171;
 }
 
 .form-actions {
@@ -355,7 +362,7 @@ onMounted(async () => {
   gap: 0.75rem;
   margin-top: 1.5rem;
   padding-top: 1.25rem;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid rgba(56, 189, 248, 0.1);
 }
 
 .btn-primary,
@@ -366,30 +373,36 @@ onMounted(async () => {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.2s;
 }
 
 .btn-primary {
-  background: #0f172a;
+  background: linear-gradient(135deg, rgba(56,189,248,0.9), rgba(14,165,233,0.9));
   color: #fff;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.15);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #1e293b;
+  background: linear-gradient(135deg, rgba(56,189,248,1), rgba(14,165,233,1));
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+  transform: translateY(-1px);
 }
 
 .btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .btn-secondary {
-  background: #e2e8f0;
-  color: #0f172a;
+  background: rgba(226, 232, 240, 0.1);
+  color: #e2e8f0;
+  border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
 .btn-secondary:hover {
-  background: #cbd5e1;
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.4);
 }
 
 .state-message {
@@ -400,6 +413,6 @@ onMounted(async () => {
 }
 
 .state-message.error {
-  color: #dc2626;
+  color: #f87171;
 }
 </style>

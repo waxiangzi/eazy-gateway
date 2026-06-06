@@ -114,7 +114,9 @@ onMounted(() => {
   margin: 0 0 1.5rem;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
 }
 
 .list-section {
@@ -128,12 +130,12 @@ onMounted(() => {
   margin: 0 0 1rem;
   font-size: 1.125rem;
   font-weight: 600;
-  color: #0f172a;
+  color: #e2e8f0;
 }
 
 .error-message {
   margin: 0;
-  color: #dc2626;
+  color: #f87171;
   font-size: 0.875rem;
 }
 
@@ -150,10 +152,10 @@ onMounted(() => {
 .empty-state {
   padding: 2rem;
   text-align: center;
-  color: #64748b;
-  background: #f8fafc;
+  color: #94a3b8;
+  background: rgba(16, 24, 48, 0.5);
   border-radius: 0.5rem;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed rgba(56, 189, 248, 0.2);
 }
 
 .empty-state p {
@@ -161,9 +163,9 @@ onMounted(() => {
 }
 
 .empty-state.error {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #dc2626;
+  background: rgba(248, 113, 113, 0.08);
+  border-color: rgba(248, 113, 113, 0.25);
+  color: #f87171;
 }
 
 .key-list {
@@ -177,9 +179,18 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.25rem;
-  background: #ffffff;
+  background: rgba(16, 24, 48, 0.65);
   border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.key-card:hover {
+  border-color: rgba(56, 189, 248, 0.3);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.1), 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .key-info {
@@ -191,14 +202,14 @@ onMounted(() => {
 
 .key-name {
   font-weight: 600;
-  color: #0f172a;
+  color: #e2e8f0;
   font-size: 0.9375rem;
 }
 
 .key-public {
   font-size: 0.8125rem;
-  color: #475569;
-  font-family: monospace;
+  color: #94a3b8;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -218,38 +229,44 @@ onMounted(() => {
 
 .btn-copy {
   padding: 0.375rem 0.75rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(56, 189, 248, 0.2);
   border-radius: 0.375rem;
-  background: #f8fafc;
-  color: #334155;
+  background: rgba(10, 14, 26, 0.6);
+  color: #94a3b8;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s;
+  font-family: inherit;
+  transition: all 0.2s;
 }
 
 .btn-copy:hover {
-  background: #e2e8f0;
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
 }
 
 .btn-danger {
   padding: 0.375rem 0.75rem;
-  border: 1px solid #fecaca;
+  border: 1px solid rgba(248, 113, 113, 0.25);
   border-radius: 0.375rem;
-  background: #fef2f2;
-  color: #dc2626;
+  background: rgba(248, 113, 113, 0.08);
+  color: #f87171;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s;
+  font-family: inherit;
+  transition: all 0.2s;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #fee2e2;
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.4);
+  box-shadow: 0 0 8px rgba(248, 113, 113, 0.15);
 }
 
 .btn-danger:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 </style>

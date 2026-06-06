@@ -62,15 +62,20 @@ async function handleLogout() {
   justify-content: space-between;
   padding: 0 1.5rem;
   height: 3.5rem;
-  background: #0f172a;
+  background: rgba(10, 14, 26, 0.85);
   color: #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.15);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.08), 0 4px 12px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
 }
 
 .nav-brand {
   font-weight: 700;
   font-size: 1.125rem;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  color: #38bdf8;
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
 }
 
 .nav-links {
@@ -82,10 +87,10 @@ async function handleLogout() {
 .nav-link {
   padding: 0.5rem 0.75rem;
   border-radius: 0.375rem;
-  color: #cbd5e1;
+  color: #94a3b8;
   text-decoration: none;
   font-size: 0.875rem;
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.2s;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -93,8 +98,9 @@ async function handleLogout() {
 
 .nav-link:hover,
 .nav-link.router-link-active {
-  background: #1e293b;
-  color: #f8fafc;
+  background: rgba(56, 189, 248, 0.1);
+  color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.1);
 }
 
 .nav-link.logout {
@@ -103,30 +109,33 @@ async function handleLogout() {
 }
 
 .nav-link.logout:hover {
-  background: #450a0a;
+  background: rgba(248, 113, 113, 0.1);
   color: #fca5a5;
+  box-shadow: 0 0 8px rgba(248, 113, 113, 0.1);
 }
 
 .locale-select {
   appearance: none;
-  background: #1e293b;
-  color: #f8fafc;
-  border: 1px solid #334155;
+  background: rgba(10, 14, 26, 0.8);
+  color: #e2e8f0;
+  border: 1px solid rgba(56, 189, 248, 0.2);
   border-radius: 0.375rem;
   padding: 0.375rem 1.5rem 0.375rem 0.75rem;
   font-size: 0.875rem;
   cursor: pointer;
   margin-left: 0.5rem;
   outline: none;
+  font-family: inherit;
 }
 
 .locale-select:focus {
-  border-color: #64748b;
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.15);
 }
 
 .main-content {
   flex: 1;
   padding: 1.5rem;
-  background: #f8fafc;
+  background: #0a0e1a;
 }
 </style>

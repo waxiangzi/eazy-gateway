@@ -1,6 +1,6 @@
 {
   "nav": {
-    "brand": "Developer Gateway",
+    "brand": "UnifiedEnv Easy Gateway",
     "dashboard": "Dashboard",
     "hosts": "Hosts",
     "tunnels": "Connections",
@@ -54,7 +54,7 @@
       "error": "error"
     },
     "onboarding": {
-      "title": "Welcome to tun-console",
+      "title": "Welcome to UnifiedEnv Easy Gateway",
       "subtitle": "Follow these steps to set up your first connection.",
       "step1Title": "Add a Host",
       "step1Desc": "Configure the server you want to connect through — address, user, and key.",
@@ -144,7 +144,7 @@
     "inUse": "Key is in use by a host and cannot be deleted."
   },
   "login": {
-    "title": "Developer Gateway",
+    "title": "UnifiedEnv Easy Gateway",
     "passwordLabel": "Password",
     "passwordPlaceholder": "Enter password",
     "submit": "Login",
@@ -171,7 +171,7 @@
       "title": "Security"
     },
     "appNameLabel": "Display Name",
-    "appNamePlaceholder": "e.g. Developer Gateway",
+    "appNamePlaceholder": "e.g. UnifiedEnv Easy Gateway",
     "trafficTrendHoursLabel": "Traffic Trend Hours",
     "trafficTrendHoursUnit": "hours",
     "errors": {

@@ -63,17 +63,17 @@ function initChart() {
         values: (u, vals) => vals.map((v) => formatBytes(v)),
       },
     ],
-    series: [
+      series: [
       { label: '', value: '{HH}:{mm}' },
       {
         label: t('tunnel.traffic.in'),
-        stroke: '#3b82f6',
-        fill: 'rgba(59,130,246,0.15)',
+        stroke: '#38bdf8',
+        fill: 'rgba(56,189,248,0.15)',
       },
       {
         label: t('tunnel.traffic.out'),
-        stroke: '#22c55e',
-        fill: 'rgba(34,197,94,0.15)',
+        stroke: '#34d399',
+        fill: 'rgba(52,211,153,0.15)',
       },
     ],
   }
@@ -126,7 +126,7 @@ function handleResize() {
 .traffic-chart-empty {
   padding: 1rem;
   text-align: center;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 0.875rem;
 }
 </style>

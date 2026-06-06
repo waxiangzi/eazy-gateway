@@ -74,23 +74,29 @@ h1 {
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
 }
 
 .btn-primary {
   display: inline-block;
   padding: 0.5rem 1rem;
-  background: #0f172a;
+  background: linear-gradient(135deg, rgba(56,189,248,0.9), rgba(14,165,233,0.9));
   color: #fff;
   text-decoration: none;
   border-radius: 0.375rem;
   font-size: 0.875rem;
   font-weight: 600;
-  transition: background 0.15s;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.15);
+  transition: all 0.2s;
 }
 
 .btn-primary:hover {
-  background: #1e293b;
+  background: linear-gradient(135deg, rgba(56,189,248,1), rgba(14,165,233,1));
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+  transform: translateY(-1px);
 }
 
 .state-message {
@@ -101,20 +107,23 @@ h1 {
 }
 
 .state-message.error {
-  color: #dc2626;
+  color: #f87171;
 }
 
 .empty-state {
   text-align: center;
   padding: 4rem 2rem;
-  background: #fff;
+  background: rgba(16, 24, 48, 0.65);
   border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .empty-state p {
   margin: 0 0 1.5rem;
-  color: #64748b;
+  color: #94a3b8;
   font-size: 1rem;
 }
 
@@ -129,9 +138,18 @@ h1 {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.25rem;
-  background: #fff;
+  background: rgba(16, 24, 48, 0.65);
   border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.host-card:hover {
+  border-color: rgba(56, 189, 248, 0.3);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.1), 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .host-info {
@@ -152,13 +170,13 @@ h1 {
 .host-name {
   font-weight: 600;
   font-size: 1rem;
-  color: #0f172a;
+  color: #e2e8f0;
 }
 
 .host-address {
   font-size: 0.875rem;
-  color: #475569;
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  color: #38bdf8;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 }
 
 .host-actions {
@@ -176,25 +194,31 @@ h1 {
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, opacity 0.15s;
+  transition: all 0.2s;
   text-decoration: none;
 }
 
 .btn-edit {
-  background: #e2e8f0;
-  color: #0f172a;
+  background: rgba(226, 232, 240, 0.1);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .btn-edit:hover {
-  background: #cbd5e1;
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
 }
 
 .btn-delete {
-  background: #dc2626;
+  background: linear-gradient(135deg, rgba(248,113,113,0.85), rgba(239,68,68,0.85));
   color: #fff;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.15);
 }
 
 .btn-delete:hover {
-  background: #b91c1c;
+  background: linear-gradient(135deg, rgba(248,113,113,1), rgba(239,68,68,1));
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.25);
 }
 </style>

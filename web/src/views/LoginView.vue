@@ -56,16 +56,19 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f1f5f9;
+  background: #0a0e1a;
 }
 
 .login-form {
   width: 100%;
   max-width: 24rem;
   padding: 2rem;
-  background: #ffffff;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  background: rgba(16, 24, 48, 0.65);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.08), 0 4px 12px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
 }
 
 .login-title {
@@ -73,7 +76,9 @@ async function handleSubmit() {
   font-size: 1.5rem;
   font-weight: 700;
   text-align: center;
-  color: #0f172a;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
 }
 
 .form-group {
@@ -85,29 +90,31 @@ async function handleSubmit() {
   margin-bottom: 0.25rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #334155;
+  color: #94a3b8;
 }
 
 .form-group input {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgba(56, 189, 248, 0.2);
   border-radius: 0.375rem;
   font-size: 1rem;
-  color: #0f172a;
-  background: #fff;
+  color: #e2e8f0;
+  background: rgba(10, 14, 26, 0.8);
   box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15), 0 0 8px rgba(56, 189, 248, 0.2);
 }
 
 .error-message {
   margin: 0 0 1rem;
-  color: #dc2626;
+  color: #f87171;
   font-size: 0.875rem;
   text-align: center;
 }
@@ -117,20 +124,24 @@ async function handleSubmit() {
   padding: 0.625rem;
   border: none;
   border-radius: 0.375rem;
-  background: #0f172a;
+  background: linear-gradient(135deg, rgba(56,189,248,0.9), rgba(14,165,233,0.9));
   color: #fff;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.2s;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.15);
 }
 
 .login-button:hover:not(:disabled) {
-  background: #1e293b;
+  background: linear-gradient(135deg, rgba(56,189,248,1), rgba(14,165,233,1));
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+  transform: translateY(-1px);
 }
 
 .login-button:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 </style>
