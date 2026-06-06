@@ -37,6 +37,10 @@ func ChangePasswordHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "new password required"})
 			return
 		}
+		if len(body.NewPassword) < 8 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "new password must be at least 8 characters"})
+			return
+		}
 
 		cfg, err := d.GetAdmin()
 		if err != nil {
@@ -88,7 +92,7 @@ func ResetPasswordHandler(d *db.DB) http.HandlerFunc {
 
 		password, err := ResetAdminPassword(d)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 			return
 		}
 

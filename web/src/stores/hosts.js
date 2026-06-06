@@ -57,6 +57,11 @@ export const useHostsStore = defineStore('hosts', () => {
     await client.delete(`/hosts/${id}`)
   }
 
+  async function testHost(data) {
+    const res = await client.post('/hosts/test', data)
+    return res.data
+  }
+
   return {
     list,
     loading,
@@ -69,5 +74,6 @@ export const useHostsStore = defineStore('hosts', () => {
     updateHost,
     getHost,
     deleteHost,
+    testHost,
   }
 })

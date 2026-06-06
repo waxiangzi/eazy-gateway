@@ -1,10 +1,10 @@
 # tun-console
 
-A web-based SSH tunnel manager built with Go and Vue 3.
+A web-based SSH connection manager built with Go and Vue 3.
 
 ## Features
 
-- Manage SSH tunnels (local, remote, dynamic/SOCKS5) through a web UI
+- Manage secure SSH connections (local port forwarding, remote port forwarding, dynamic SOCKS5 proxy) through a web UI
 - Store SSH keys encrypted at rest
 - Admin authentication with session cookies
 - Graceful shutdown on SIGTERM/SIGINT
@@ -75,13 +75,13 @@ sudo systemctl enable --now tun-console
 | POST | `/api/logout` | Logout |
 | GET | `/api/me` | Session check |
 | POST | `/api/admin/change-password` | Change admin password |
-| GET | `/api/tunnels` | List tunnels |
-| POST | `/api/tunnels` | Create tunnel |
-| GET | `/api/tunnels/{id}` | Get tunnel |
-| PUT | `/api/tunnels/{id}` | Update tunnel |
-| DELETE | `/api/tunnels/{id}` | Delete tunnel |
-| POST | `/api/tunnels/{id}/start` | Start tunnel |
-| POST | `/api/tunnels/{id}/stop` | Stop tunnel |
+| GET | `/api/tunnels` | List connections |
+| POST | `/api/tunnels` | Create connection |
+| GET | `/api/tunnels/{id}` | Get connection |
+| PUT | `/api/tunnels/{id}` | Update connection |
+| DELETE | `/api/tunnels/{id}` | Delete connection |
+| POST | `/api/tunnels/{id}/start` | Start connection |
+| POST | `/api/tunnels/{id}/stop` | Stop connection |
 | GET | `/api/keys` | List SSH keys |
 | POST | `/api/keys` | Add SSH key |
 | DELETE | `/api/keys/{id}` | Remove SSH key |

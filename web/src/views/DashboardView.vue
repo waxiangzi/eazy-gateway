@@ -42,54 +42,71 @@
     </div>
     <div v-else class="tunnel-list">
       <div
-        v-for="tunnel in store.list"
+        v-for="tunnel in sortedList"
         :key="tunnel.id"
         class="tunnel-card"
       >
-        <div class="tunnel-info">
-          <div class="tunnel-row">
-            <span class="tunnel-name">{{ tunnel.name }}</span>
-            <span class="tunnel-type">{{ t('tunnel.types.' + tunnel.type) }}</span>
-            <span
-              class="status-badge"
-              :class="`status-${store.statuses[tunnel.id] || 'disconnected'}`"
-            >
-              {{ t('tunnel.status.' + (store.statuses[tunnel.id] || 'disconnected')) }}
-            </span>
+        <div class="tunnel-header">
+          <div class="tunnel-info">
+            <div class="tunnel-row">
+              <span class="tunnel-name">{{ tunnel.name }}</span>
+              <span class="tunnel-type">{{ t('tunnel.types.' + tunnel.type) }}</span>
+              <span
+                class="status-badge"
+                :class="`status-${store.statuses[tunnel.id] || 'disconnected'}`"
+              >
+                {{ t('tunnel.status.' + (store.statuses[tunnel.id] || 'disconnected')) }}
+              </span>
+            </div>
+            <div class="tunnel-row details">
+              <span class="host-name">{{ hostName(tunnel.hostId) }}</span>
+              <span class="address">
+                {{ tunnel.bindExternal ? '0.0.0.0' : '127.0.0.1' }}:{{ tunnel.listenPort }}
+              </span>
+              <span v-if="tunnel.type !== 'dynamic'" class="address">
+                <template v-if="tunnel.type === 'local'">→ remote </template>
+                <template v-else>→ local </template>
+                {{ tunnel.targetHost }}:{{ tunnel.targetPort }}
+              </span>
+            </div>
+            <div class="tunnel-row traffic">
+              <span class="traffic-label">{{ t('tunnel.traffic.in') }}</span>
+              <span class="traffic-value">{{ formatBytes(store.traffic[tunnel.id]?.bytesIn || 0) }}</span>
+              <span class="traffic-label">{{ t('tunnel.traffic.out') }}</span>
+              <span class="traffic-value">{{ formatBytes(store.traffic[tunnel.id]?.bytesOut || 0) }}</span>
+            </div>
           </div>
-          <div class="tunnel-row details">
-            <span class="host-name">{{ hostName(tunnel.hostId) }}</span>
-            <span class="address">
-              {{ tunnel.bindExternal ? '0.0.0.0' : '127.0.0.1' }}:{{ tunnel.listenPort }}
-            </span>
-            <span v-if="tunnel.type !== 'dynamic'" class="address">
-              <template v-if="tunnel.type === 'local'">→ remote </template>
-              <template v-else>→ local </template>
-              {{ tunnel.targetHost }}:{{ tunnel.targetPort }}
-            </span>
+          <div class="tunnel-actions">
+            <RouterLink
+              :to="`/tunnels/${tunnel.id}`"
+              class="btn-edit"
+            >
+              {{ t('common.edit') }}
+            </RouterLink>
+            <button
+              class="btn-start"
+              :disabled="isActive(tunnel.id)"
+              @click="handleStart(tunnel.id)"
+            >
+              {{ t('tunnel.start') }}
+            </button>
+            <button
+              class="btn-stop"
+              :disabled="isInactive(tunnel.id)"
+              @click="handleStop(tunnel.id)"
+            >
+              {{ t('tunnel.stop') }}
+            </button>
           </div>
         </div>
-        <div class="tunnel-actions">
-          <RouterLink
-            :to="`/tunnels/${tunnel.id}`"
-            class="btn-edit"
-          >
-            {{ t('common.edit') }}
-          </RouterLink>
-          <button
-            class="btn-start"
-            :disabled="isActive(tunnel.id)"
-            @click="handleStart(tunnel.id)"
-          >
-            {{ t('tunnel.start') }}
+        <div class="tunnel-row trend-toggle">
+          <button class="btn-trend" @click.stop="toggleTrend(tunnel.id)">
+            {{ expandedTrendId === tunnel.id ? t('tunnel.trend.hide') : t('tunnel.trend.show') }}
           </button>
-          <button
-            class="btn-stop"
-            :disabled="isInactive(tunnel.id)"
-            @click="handleStop(tunnel.id)"
-          >
-            {{ t('tunnel.stop') }}
-          </button>
+        </div>
+        <div v-if="expandedTrendId === tunnel.id" class="trend-panel">
+          <div v-if="trendLoading[tunnel.id]" class="trend-loading">{{ t('common.loading') }}</div>
+          <TrafficChart v-else :points="trendData[tunnel.id] || []" />
         </div>
       </div>
     </div>
@@ -97,16 +114,45 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, computed } from 'vue'
+import { onMounted, onUnmounted, computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTunnelsStore } from '../stores/tunnels.js'
 import { useHostsStore } from '../stores/hosts.js'
+import { useSettingsStore } from '../stores/settings.js'
+import TrafficChart from '../components/TrafficChart.vue'
 
 const { t } = useI18n()
 const store = useTunnelsStore()
 const hostsStore = useHostsStore()
+const settingsStore = useSettingsStore()
 
 let pollInterval = null
+
+const expandedTrendId = ref(null)
+const trendData = ref({})
+const trendLoading = ref({})
+
+async function toggleTrend(id) {
+  if (expandedTrendId.value === id) {
+    expandedTrendId.value = null
+    return
+  }
+  expandedTrendId.value = id
+  if (!trendData.value[id]) {
+    trendLoading.value[id] = true
+    const points = await store.fetchTrafficTrend(id, settingsStore.trafficTrendHours)
+    trendData.value[id] = points
+    trendLoading.value[id] = false
+  }
+}
+
+const sortedList = computed(() => {
+  return [...store.list].sort((a, b) => {
+    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    return ta - tb
+  })
+})
 
 const steps = computed(() => {
   const hasHost = hostsStore.list.length > 0
@@ -146,6 +192,14 @@ const steps = computed(() => {
     },
   ]
 })
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
 
 function hostName(hostId) {
   const host = hostsStore.list.find((h) => h.id === hostId)
@@ -361,12 +415,19 @@ h1 {
 
 .tunnel-card {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.25rem;
   padding: 1rem 1.25rem;
   background: #fff;
   border-radius: 0.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tunnel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .tunnel-info {
@@ -443,11 +504,61 @@ h1 {
   font-size: 0.8125rem;
 }
 
+.tunnel-row.traffic {
+  font-size: 0.75rem;
+  color: #64748b;
+  gap: 0.375rem;
+}
+
+.traffic-label {
+  color: #94a3b8;
+}
+
+.traffic-value {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  color: #475569;
+  margin-right: 0.5rem;
+}
+
+.trend-toggle {
+  margin-top: 0.25rem;
+}
+
+.btn-trend {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.25rem;
+  background: #fff;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-trend:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.trend-panel {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.trend-loading {
+  padding: 1rem;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.875rem;
+}
+
 .tunnel-actions {
   display: flex;
   gap: 0.5rem;
   flex-shrink: 0;
-  margin-left: 1rem;
+  margin-top: 0.25rem;
 }
 
 .btn-edit,

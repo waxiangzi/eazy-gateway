@@ -1,7 +1,7 @@
 <template>
   <div class="login-view">
     <form class="login-form" @submit.prevent="handleSubmit">
-      <h1 class="login-title">{{ t('login.title') }}</h1>
+      <h1 class="login-title">{{ displayTitle }}</h1>
       <div class="form-group">
         <label for="password">{{ t('login.passwordLabel') }}</label>
         <input
@@ -22,15 +22,19 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth.js'
+import { useSettingsStore } from '../stores/settings.js'
 
 const { t } = useI18n()
 const password = ref('')
 const auth = useAuthStore()
+const settings = useSettingsStore()
 const router = useRouter()
+
+const displayTitle = computed(() => settings.appName || t('login.title'))
 
 // surface store error reactively
 const error = ref(auth.error)

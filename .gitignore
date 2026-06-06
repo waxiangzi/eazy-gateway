@@ -25,3 +25,7 @@ data/
 # Temporary
 *.tmp
 *.bak
+tmp/
+
+# OpenCode session metadata
+.omo/run-continuation/

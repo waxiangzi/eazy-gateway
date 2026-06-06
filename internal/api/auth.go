@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"log/slog"
 	"math/big"
 	"net/http"
 	"strings"
@@ -23,17 +22,92 @@ const (
 	sessionMaxAge = 24 * time.Hour
 )
 
+var secureCookies bool
+
+func SetSecureCookies(v bool) { secureCookies = v }
+
+func isSecure(r *http.Request) bool {
+	if secureCookies {
+		return true
+	}
+	return r.TLS != nil
+}
+
 // SessionStore holds active sessions in memory.
 type SessionStore struct {
 	mu       sync.RWMutex
 	sessions map[string]time.Time // token → expiry
+
+	loginMu    sync.Mutex
+	loginFails map[string]*loginAttempt // client IP → recent failures
+}
+
+type loginAttempt struct {
+	count   int
+	lastFail time.Time
+	blocked bool
 }
 
 // NewSessionStore creates an empty session store.
 func NewSessionStore() *SessionStore {
 	return &SessionStore{
-		sessions: make(map[string]time.Time),
+		sessions:   make(map[string]time.Time),
+		loginFails: make(map[string]*loginAttempt),
 	}
+}
+
+const (
+	maxLoginAttempts    = 5
+	loginBlockDuration  = 5 * time.Minute
+	loginAttemptWindow  = 5 * time.Minute
+)
+
+func (s *SessionStore) checkLoginRateLimit(ip string) bool {
+	s.loginMu.Lock()
+	defer s.loginMu.Unlock()
+
+	attempt, exists := s.loginFails[ip]
+	if !exists {
+		return true
+	}
+
+	if attempt.blocked {
+		if time.Since(attempt.lastFail) > loginBlockDuration {
+			delete(s.loginFails, ip)
+			return true
+		}
+		return false
+	}
+
+	if time.Since(attempt.lastFail) > loginAttemptWindow {
+		delete(s.loginFails, ip)
+		return true
+	}
+
+	return attempt.count < maxLoginAttempts
+}
+
+func (s *SessionStore) recordLoginFailure(ip string) {
+	s.loginMu.Lock()
+	defer s.loginMu.Unlock()
+
+	attempt := s.loginFails[ip]
+	if attempt == nil {
+		attempt = &loginAttempt{}
+		s.loginFails[ip] = attempt
+	}
+
+	attempt.count++
+	attempt.lastFail = time.Now()
+	if attempt.count >= maxLoginAttempts {
+		attempt.blocked = true
+	}
+}
+
+func (s *SessionStore) clearLoginAttempts(ip string) {
+	s.loginMu.Lock()
+	delete(s.loginFails, ip)
+	s.loginMu.Unlock()
 }
 
 // Create generates a new session token and stores it with a 24h expiry.
@@ -79,6 +153,36 @@ func (s *SessionStore) ClearAll() {
 	s.mu.Lock()
 	s.sessions = make(map[string]time.Time)
 	s.mu.Unlock()
+}
+
+// StartPruning starts a background goroutine that removes expired sessions
+// at the given interval. The returned function stops the pruner.
+func (s *SessionStore) StartPruning(interval time.Duration) func() {
+	ticker := time.NewTicker(interval)
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				s.prune()
+			case <-done:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+	return func() { close(done) }
+}
+
+func (s *SessionStore) prune() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	for token, expiry := range s.sessions {
+		if now.After(expiry) {
+			delete(s.sessions, token)
+		}
+	}
 }
 
 // randomToken generates 32 cryptographically random bytes and returns a base64-encoded string.
@@ -139,7 +243,6 @@ func EnsureAdmin(d *db.DB) (string, error) {
 		return "", fmt.Errorf("set admin config: %w", err)
 	}
 
-	slog.Info("admin password generated", "password", password)
 	return password, nil
 }
 
@@ -181,6 +284,16 @@ func LoginHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 			return
 		}
 
+		clientIP := r.RemoteAddr
+		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+			clientIP = strings.Split(fwd, ",")[0]
+		}
+
+		if !sessions.checkLoginRateLimit(clientIP) {
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "too many failed login attempts; try again later"})
+			return
+		}
+
 		var body struct {
 			Password string `json:"password"`
 		}
@@ -206,9 +319,12 @@ func LoginHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 		}
 
 		if !crypto.VerifyPassword(body.Password, cfg.PasswordHash) {
+			sessions.recordLoginFailure(clientIP)
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid password"})
 			return
 		}
+
+		sessions.clearLoginAttempts(clientIP)
 
 		token, err := sessions.Create()
 		if err != nil {
@@ -222,7 +338,7 @@ func LoginHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 			Value:    token,
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   false,
+			Secure:   isSecure(r),
 			SameSite: http.SameSiteLaxMode,
 			MaxAge:   int(sessionMaxAge.Seconds()),
 		})
@@ -253,7 +369,7 @@ func LogoutHandler(sessions *SessionStore) http.HandlerFunc {
 			Value:    "",
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   false,
+			Secure:   isSecure(r),
 			SameSite: http.SameSiteLaxMode,
 			MaxAge:   -1,
 		})
@@ -300,8 +416,8 @@ func NewAuthMiddleware(sessions *SessionStore) *AuthMiddleware {
 // are allowed through without authentication.
 func (m *AuthMiddleware) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow login and password reset endpoints without session
-		if r.URL.Path == "/api/login" || r.URL.Path == "/api/admin/reset-password" {
+		// Allow login and settings read endpoint without session
+		if r.URL.Path == "/api/login" || (r.URL.Path == "/api/settings" && r.Method == http.MethodGet) {
 			next.ServeHTTP(w, r)
 			return
 		}

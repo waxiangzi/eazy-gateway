@@ -6,7 +6,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tun-console/tun-console/internal/db"
 	"github.com/tun-console/tun-console/internal/ssh"
@@ -41,6 +43,9 @@ func (h *TunnelHandler) validate(req *tunnelRequest) error {
 	if req.Name == "" {
 		return fmt.Errorf("name is required")
 	}
+	if len(req.Name) > 128 || hasControlChar(req.Name) {
+		return fmt.Errorf("name must not exceed 128 characters or contain control characters")
+	}
 	switch req.Type {
 	case "local", "remote", "dynamic":
 	default:
@@ -56,15 +61,18 @@ func (h *TunnelHandler) validate(req *tunnelRequest) error {
 	if host == nil {
 		return fmt.Errorf("host %q not found", req.HostID)
 	}
-	if req.ListenPort <= 0 {
-		return fmt.Errorf("listenPort must be greater than 0")
+	if req.ListenPort <= 0 || req.ListenPort > 65535 {
+		return fmt.Errorf("listenPort must be between 1 and 65535")
 	}
 	if req.Type != "dynamic" {
 		if req.TargetHost == "" {
 			return fmt.Errorf("targetHost is required")
 		}
-		if req.TargetPort <= 0 {
-			return fmt.Errorf("targetPort must be greater than 0")
+		if len(req.TargetHost) > 253 || hasControlChar(req.TargetHost) {
+			return fmt.Errorf("targetHost must not exceed 253 characters or contain control characters")
+		}
+		if req.TargetPort <= 0 || req.TargetPort > 65535 {
+			return fmt.Errorf("targetPort must be between 1 and 65535")
 		}
 	}
 	return nil
@@ -109,11 +117,6 @@ func toSSHConfig(tc *db.TunnelConfig, host *db.Host) *ssh.Config {
 
 // List handles GET /api/tunnels — returns all tunnel configs with runtime status.
 func (h *TunnelHandler) List(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	tunnels, err := h.db.ListTunnels()
 	if err != nil {
 		log.Printf("ERROR: list tunnels: %v", err)
@@ -137,9 +140,15 @@ func (h *TunnelHandler) List(w http.ResponseWriter, r *http.Request) {
 		hostMap[host.ID] = host
 	}
 
+	type traffic struct {
+		BytesIn  uint64 `json:"bytesIn"`
+		BytesOut uint64 `json:"bytesOut"`
+	}
+
 	type item struct {
 		db.TunnelConfig
-		Status string `json:"status"`
+		Status  string  `json:"status"`
+		Traffic traffic `json:"traffic"`
 	}
 
 	items := make([]item, 0, len(tunnels))
@@ -148,7 +157,22 @@ func (h *TunnelHandler) List(w http.ResponseWriter, r *http.Request) {
 		if h.engine != nil {
 			s = h.engine.Status(t.ID)
 		}
-		items = append(items, item{TunnelConfig: *t, Status: s})
+		rtIn, rtOut := uint64(0), uint64(0)
+		if h.engine != nil {
+			rtIn, rtOut = h.engine.Traffic(t.ID)
+		}
+		stored, _ := h.db.GetTraffic(t.ID)
+		if stored == nil {
+			stored = &db.TrafficStats{}
+		}
+		items = append(items, item{
+			TunnelConfig: *t,
+			Status:       s,
+			Traffic: traffic{
+				BytesIn:  stored.TotalBytesIn + rtIn,
+				BytesOut: stored.TotalBytesOut + rtOut,
+			},
+		})
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -159,11 +183,6 @@ func (h *TunnelHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Get handles GET /api/tunnels/{id} — returns a single tunnel config with runtime status.
 func (h *TunnelHandler) Get(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	id := r.PathValue("id")
 	if id == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id required"})
@@ -177,7 +196,7 @@ func (h *TunnelHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tc == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "tunnel not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "connection not found"})
 		return
 	}
 
@@ -186,19 +205,27 @@ func (h *TunnelHandler) Get(w http.ResponseWriter, r *http.Request) {
 		status = h.engine.Status(id)
 	}
 
+	rtIn, rtOut := uint64(0), uint64(0)
+	if h.engine != nil {
+		rtIn, rtOut = h.engine.Traffic(id)
+	}
+	stored, _ := h.db.GetTraffic(id)
+	if stored == nil {
+		stored = &db.TrafficStats{}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"tunnel": tc,
 		"status": status,
+		"traffic": map[string]uint64{
+			"bytesIn":  stored.TotalBytesIn + rtIn,
+			"bytesOut": stored.TotalBytesOut + rtOut,
+		},
 	})
 }
 
 // Status handles GET /api/tunnels/{id}/status — returns tunnel config with runtime status.
 func (h *TunnelHandler) Status(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	id := r.PathValue("id")
 	if id == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id required"})
@@ -212,7 +239,7 @@ func (h *TunnelHandler) Status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tc == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "tunnel not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "connection not found"})
 		return
 	}
 
@@ -286,11 +313,6 @@ func (h *TunnelHandler) RestoreEnabled() {
 
 // Create handles POST /api/tunnels — creates a new tunnel config.
 func (h *TunnelHandler) Create(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	var req tunnelRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -314,11 +336,6 @@ func (h *TunnelHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /api/tunnels/{id} — updates an existing tunnel config.
 func (h *TunnelHandler) Update(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	id := r.PathValue("id")
 	if id == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id required"})
@@ -333,7 +350,7 @@ func (h *TunnelHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if existing == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "tunnel not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "connection not found"})
 		return
 	}
 
@@ -365,11 +382,6 @@ func (h *TunnelHandler) Update(w http.ResponseWriter, r *http.Request) {
 // If the tunnel is currently running and an engine is available, it stops
 // the tunnel before deleting the config.
 func (h *TunnelHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	id := r.PathValue("id")
 	if id == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id required"})
@@ -384,19 +396,27 @@ func (h *TunnelHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tc == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "tunnel not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "connection not found"})
 		return
 	}
 
-	// Stop the tunnel if it is currently running
+	// Stop the tunnel if it is currently running and persist runtime traffic.
 	if h.engine != nil {
 		if status := h.engine.Status(id); status != ssh.StatusDisconnected {
 			log.Printf("stopping running tunnel %q before delete", id)
+			rtIn, rtOut := h.engine.Traffic(id)
 			if err := h.engine.Stop(id); err != nil {
 				log.Printf("WARN: stop tunnel %q before delete: %v", id, err)
 				// Continue with deletion even if stop fails
 			}
 			h.engine.Deregister(id)
+			stored, _ := h.db.GetTraffic(id)
+			if stored == nil {
+				stored = &db.TrafficStats{}
+			}
+			stored.TotalBytesIn += rtIn
+			stored.TotalBytesOut += rtOut
+			_ = h.db.UpdateTraffic(id, stored)
 		}
 	}
 
@@ -405,6 +425,7 @@ func (h *TunnelHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
+	_ = h.db.DeleteTraffic(id)
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -413,11 +434,6 @@ func (h *TunnelHandler) Delete(w http.ResponseWriter, r *http.Request) {
 // resolves its host, reads the host's key, registers both with the engine,
 // and brings the tunnel online.
 func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	id := r.PathValue("id")
 	if id == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id required"})
@@ -436,7 +452,7 @@ func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tc == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "tunnel not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "connection not found"})
 		return
 	}
 
@@ -447,7 +463,7 @@ func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if host == nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "tunnel host not found"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "connection host not found"})
 		return
 	}
 
@@ -482,7 +498,7 @@ func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("ERROR: start tunnel %q: %v", id, err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
 
@@ -497,11 +513,6 @@ func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
 // Stop handles POST /api/tunnels/{id}/stop. It validates the tunnel exists and
 // delegates to the engine, which tears down forwarding and the SSH connection.
 func (h *TunnelHandler) Stop(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	id := r.PathValue("id")
 	if id == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id required"})
@@ -520,15 +531,33 @@ func (h *TunnelHandler) Stop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tc == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "tunnel not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "connection not found"})
 		return
 	}
 
-	if err := h.engine.Stop(id); err != nil {
-		log.Printf("ERROR: stop tunnel %q: %v", id, err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
+	// Persist runtime traffic before stopping.
+	rtIn, rtOut := uint64(0), uint64(0)
+	if h.engine != nil {
+		rtIn, rtOut = h.engine.Traffic(id)
 	}
+
+	if err := h.engine.Stop(id); err != nil {
+		if strings.Contains(err.Error(), "not active") {
+			log.Printf("INFO: stop tunnel %q: already inactive", id)
+		} else {
+			log.Printf("ERROR: stop tunnel %q: %v", id, err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+	}
+
+	stored, _ := h.db.GetTraffic(id)
+	if stored == nil {
+		stored = &db.TrafficStats{}
+	}
+	stored.TotalBytesIn += rtIn
+	stored.TotalBytesOut += rtOut
+	_ = h.db.UpdateTraffic(id, stored)
 
 	tc.Enabled = false
 	if err := h.db.UpdateTunnel(tc); err != nil {
@@ -536,4 +565,90 @@ func (h *TunnelHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
+}
+
+// TrafficTrend handles GET /api/tunnels/{id}/traffic/trend.
+// It returns delta traffic points for the requested look-back window.
+func (h *TunnelHandler) TrafficTrend(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id required"})
+		return
+	}
+
+	hours := 1
+	if hStr := r.URL.Query().Get("hours"); hStr != "" {
+		if v, err := strconv.Atoi(hStr); err == nil && v > 0 && v <= 48 {
+			hours = v
+		}
+	}
+
+	since := time.Now().Add(-time.Duration(hours) * time.Hour)
+	samples, err := h.db.ListTrafficSamples(id, since)
+	if err != nil {
+		log.Printf("ERROR: list traffic samples %q: %v", id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+
+	rtIn, rtOut := uint64(0), uint64(0)
+	if h.engine != nil {
+		rtIn, rtOut = h.engine.Traffic(id)
+	}
+	stored, _ := h.db.GetTraffic(id)
+	if stored == nil {
+		stored = &db.TrafficStats{}
+	}
+	totalIn := stored.TotalBytesIn + rtIn
+	totalOut := stored.TotalBytesOut + rtOut
+	now := time.Now().Unix()
+
+	type point struct {
+		Timestamp int64 `json:"timestamp"`
+		BytesIn   int64 `json:"bytesIn"`
+		BytesOut  int64 `json:"bytesOut"`
+	}
+
+	var points []point
+	for i := 1; i < len(samples); i++ {
+		prev := samples[i-1]
+		curr := samples[i]
+		if curr.Timestamp <= prev.Timestamp {
+			continue
+		}
+		var dIn, dOut int64
+		if curr.BytesIn > prev.BytesIn {
+			dIn = int64(curr.BytesIn - prev.BytesIn)
+		}
+		if curr.BytesOut > prev.BytesOut {
+			dOut = int64(curr.BytesOut - prev.BytesOut)
+		}
+		points = append(points, point{
+			Timestamp: curr.Timestamp,
+			BytesIn:   dIn,
+			BytesOut:  dOut,
+		})
+	}
+
+	if len(samples) > 0 {
+		last := samples[len(samples)-1]
+		if now > last.Timestamp {
+			var dIn, dOut int64
+			if totalIn > last.BytesIn {
+				dIn = int64(totalIn - last.BytesIn)
+			}
+			if totalOut > last.BytesOut {
+				dOut = int64(totalOut - last.BytesOut)
+			}
+			points = append(points, point{
+				Timestamp: now,
+				BytesIn:   dIn,
+				BytesOut:  dOut,
+			})
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"points": points,
+	})
 }

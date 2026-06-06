@@ -58,7 +58,7 @@
           <p v-if="errors.listenPort" class="field-error">{{ errors.listenPort }}</p>
         </div>
 
-        <div class="form-group checkbox-group" v-if="form.type !== 'remote'">
+        <div class="form-group checkbox-group">
           <label class="checkbox-label">
             <input type="checkbox" v-model="form.bindExternal" />
             {{ t('tunnel.form.bindExternal') }}
@@ -217,7 +217,7 @@ async function handleSubmit() {
     } else {
       await tunnelsStore.createTunnel(payload)
     }
-    router.push('/')
+    router.push({ name: 'Dashboard' })
   } catch (err) {
     if (!err.response) {
       submitError.value = t('errors.network')
@@ -225,8 +225,12 @@ async function handleSubmit() {
       submitError.value = err.response.data?.error || err.response.data?.message || t('errors.saveFailed')
     }
   } finally {
-    isLoading.value = false
+    isSubmitting.value = false
   }
+}
+
+function handleCancel() {
+  router.push({ name: 'Dashboard' })
 }
 
 watch(() => form.type, (newType, oldType) => {
@@ -270,15 +274,6 @@ onMounted(async () => {
     }
   } finally {
     isLoading.value = false
-  }
-})
-
-watch(() => form.type, (newType, oldType) => {
-  if (newType !== oldType) {
-    if (newType === 'dynamic') {
-      form.targetHost = ''
-      form.targetPort = null
-    }
   }
 })
 </script>

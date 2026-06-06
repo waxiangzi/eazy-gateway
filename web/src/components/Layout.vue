@@ -1,7 +1,7 @@
 <template>
   <div class="app-layout">
     <nav v-if="auth.isLoggedIn" class="top-nav">
-      <div class="nav-brand">{{ t('nav.brand') }}</div>
+      <div class="nav-brand">{{ displayBrand }}</div>
       <div class="nav-links">
         <RouterLink to="/" class="nav-link">{{ t('nav.dashboard') }}</RouterLink>
         <RouterLink to="/hosts" class="nav-link">{{ t('nav.hosts') }}</RouterLink>
@@ -9,9 +9,14 @@
         <RouterLink to="/keys" class="nav-link">{{ t('nav.keys') }}</RouterLink>
         <RouterLink to="/settings" class="nav-link">{{ t('nav.settings') }}</RouterLink>
         <button class="nav-link logout" @click="handleLogout">{{ t('nav.logout') }}</button>
-        <select class="lang-select" :value="currentLocale" @change="onLangChange">
-          <option value="en">English</option>
-          <option value="zh">中文</option>
+        <select
+          class="locale-select"
+          :value="currentLocale"
+          @change="(e) => setLocale(e.target.value)"
+        >
+          <option v-for="loc in locales" :key="loc.code" :value="loc.code">
+            {{ loc.label }}
+          </option>
         </select>
       </div>
     </nav>
@@ -26,17 +31,17 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth.js'
 import { useRouter } from 'vue-router'
-import { i18n, setLocale } from '../i18n'
+import { i18n, setLocale, locales } from '../i18n'
+
+import { useSettingsStore } from '../stores/settings.js'
 
 const { t } = useI18n()
 const auth = useAuthStore()
+const settings = useSettingsStore()
 const router = useRouter()
 
 const currentLocale = computed(() => i18n.global.locale.value)
-
-function onLangChange(e) {
-  setLocale(e.target.value)
-}
+const displayBrand = computed(() => settings.appName || t('nav.brand'))
 
 async function handleLogout() {
   await auth.logout()
@@ -102,20 +107,21 @@ async function handleLogout() {
   color: #fca5a5;
 }
 
-.lang-select {
-  margin-left: 0.5rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 0.375rem;
-  border: 1px solid #334155;
+.locale-select {
+  appearance: none;
   background: #1e293b;
-  color: #e2e8f0;
+  color: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: 0.375rem;
+  padding: 0.375rem 1.5rem 0.375rem 0.75rem;
   font-size: 0.875rem;
   cursor: pointer;
+  margin-left: 0.5rem;
   outline: none;
 }
 
-.lang-select:focus {
-  border-color: #475569;
+.locale-select:focus {
+  border-color: #64748b;
 }
 
 .main-content {

@@ -8,6 +8,8 @@ export const useTunnelsStore = defineStore('tunnels', () => {
   const error = ref(null)
   // Map tunnel id -> 'connected' | 'connecting' | 'disconnected' | 'error'
   const statuses = ref({})
+  // Map tunnel id -> { bytesIn: number, bytesOut: number }
+  const traffic = ref({})
 
   function setTunnels(tunnels) {
     list.value = tunnels
@@ -23,6 +25,7 @@ export const useTunnelsStore = defineStore('tunnels', () => {
       list.value.splice(idx, 1)
     }
     delete statuses.value[id]
+    delete traffic.value[id]
   }
 
   async function fetchTunnels() {
@@ -34,8 +37,9 @@ export const useTunnelsStore = defineStore('tunnels', () => {
       const tunnels = data.items || []
       list.value = tunnels
       for (const t of list.value) {
-        if (statuses.value[t.id] === undefined) {
-          statuses.value[t.id] = 'disconnected'
+        statuses.value[t.id] = t.status || 'disconnected'
+        if (t.traffic) {
+          traffic.value[t.id] = t.traffic
         }
       }
       return data.hosts || {}
@@ -43,7 +47,7 @@ export const useTunnelsStore = defineStore('tunnels', () => {
       error.value =
         err.response?.data?.message ||
         err.response?.data?.error ||
-        'Failed to fetch tunnels'
+        'Failed to fetch connections'
       return {}
     } finally {
       loading.value = false
@@ -62,7 +66,7 @@ export const useTunnelsStore = defineStore('tunnels', () => {
       error.value =
         err.response?.data?.message ||
         err.response?.data?.error ||
-        'Failed to start tunnel'
+        'Failed to start connection'
       return false
     }
   }
@@ -78,19 +82,37 @@ export const useTunnelsStore = defineStore('tunnels', () => {
       error.value =
         err.response?.data?.message ||
         err.response?.data?.error ||
-        'Failed to stop tunnel'
+        'Failed to stop connection'
       return false
     }
   }
 
   async function createTunnel(data) {
-    const res = await client.post('/tunnels', data)
-    return res.data
+    error.value = null
+    try {
+      const res = await client.post('/tunnels', data)
+      return res.data
+    } catch (err) {
+      error.value =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        'Failed to create connection'
+      throw err
+    }
   }
 
   async function updateTunnel(id, data) {
-    const res = await client.put(`/tunnels/${id}`, data)
-    return res.data
+    error.value = null
+    try {
+      const res = await client.put(`/tunnels/${id}`, data)
+      return res.data
+    } catch (err) {
+      error.value =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        'Failed to update connection'
+      throw err
+    }
   }
 
   async function getTunnel(id) {
@@ -98,11 +120,23 @@ export const useTunnelsStore = defineStore('tunnels', () => {
     return res.data || {}
   }
 
+  async function fetchTrafficTrend(id, hours) {
+    try {
+      const res = await client.get(`/tunnels/${id}/traffic/trend`, {
+        params: { hours },
+      })
+      return res.data?.points || []
+    } catch (err) {
+      return []
+    }
+  }
+
   return {
     list,
     loading,
     error,
     statuses,
+    traffic,
     setTunnels,
     addTunnel,
     removeTunnel,
@@ -112,5 +146,6 @@ export const useTunnelsStore = defineStore('tunnels', () => {
     createTunnel,
     updateTunnel,
     getTunnel,
+    fetchTrafficTrend,
   }
 })

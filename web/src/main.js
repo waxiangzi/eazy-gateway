@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import { useAuthStore } from './stores/auth.js'
+import { useSettingsStore } from './stores/settings.js'
 import { i18n } from './i18n'
 
 const app = createApp(App)
@@ -11,6 +12,8 @@ app.use(router)
 app.use(i18n)
 
 const auth = useAuthStore()
+const settings = useSettingsStore()
 auth.checkAuth().finally(() => {
+  settings.fetchSettings()
   app.mount('#app')
 })

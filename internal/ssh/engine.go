@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -88,6 +89,9 @@ type tunnel struct {
 	listeners []net.Listener
 	conns     map[net.Conn]struct{}
 	fwdWg     sync.WaitGroup
+
+	bytesIn  atomic.Uint64
+	bytesOut atomic.Uint64
 }
 
 // Register stores a tunnel's configuration and its decrypted PEM private key
@@ -460,18 +464,21 @@ func (t *tunnel) acceptLoop(l net.Listener, handle func(net.Conn)) {
 // pipe relays bytes in both directions between a and b until either side hits
 // EOF or an error, then closes both ends so the opposite copy also unblocks.
 // It is the per-connection workhorse shared by all three forwarders.
+// Traffic is counted atomically: bytesIn = remote->local, bytesOut = local->remote.
 func (t *tunnel) pipe(a, b net.Conn) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		_, _ = io.Copy(a, b)
+		n, _ := io.Copy(a, b)
+		t.bytesIn.Add(uint64(n))
 		_ = a.Close()
 		_ = b.Close()
 	}()
 	go func() {
 		defer wg.Done()
-		_, _ = io.Copy(b, a)
+		n, _ := io.Copy(b, a)
+		t.bytesOut.Add(uint64(n))
 		_ = a.Close()
 		_ = b.Close()
 	}()
@@ -490,6 +497,23 @@ func (t *tunnel) setStatus(status string) {
 	t.mu.Lock()
 	t.status = status
 	t.mu.Unlock()
+}
+
+// Traffic returns the current runtime byte counters for this tunnel.
+func (t *tunnel) Traffic() (uint64, uint64) {
+	return t.bytesIn.Load(), t.bytesOut.Load()
+}
+
+// Traffic returns the live byte counters for an active tunnel, or zeroes if
+// the tunnel is not currently running.
+func (e *TunnelEngine) Traffic(tunnelID string) (uint64, uint64) {
+	e.mu.RLock()
+	t, ok := e.tunnels[tunnelID]
+	e.mu.RUnlock()
+	if !ok {
+		return 0, 0
+	}
+	return t.Traffic()
 }
 
 // cacheKey stores a private-key copy in the in-memory cache under the key

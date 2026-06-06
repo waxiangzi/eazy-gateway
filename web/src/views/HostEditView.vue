@@ -36,10 +36,14 @@
       </div>
 
       <p v-if="submitError" class="error-message">{{ submitError }}</p>
+      <p v-if="testResult" :class="['test-message', testSuccess ? 'success' : 'error']">{{ testResult }}</p>
 
       <div class="form-actions">
         <button type="button" class="btn-secondary" @click="handleCancel">
           {{ t('common.cancel') }}
+        </button>
+        <button type="button" class="btn-secondary" :disabled="isTesting || !canTest" @click="handleTest">
+          {{ isTesting ? t('host.testing') : t('host.test') }}
         </button>
         <button type="submit" class="btn-primary" :disabled="isSubmitting">
           {{ isSubmitting ? t('common.saving') : (isEditMode ? t('common.update') : t('common.create')) }}
@@ -65,6 +69,9 @@ const keysStore = useKeysStore()
 
 const isEditMode = computed(() => !!route.params.id && route.params.id !== 'new')
 const isSubmitting = ref(false)
+const isTesting = ref(false)
+const testResult = ref('')
+const testSuccess = ref(false)
 const submitError = ref('')
 const isLoading = ref(false)
 const loadError = ref('')
@@ -85,7 +92,13 @@ function clearErrors() {
   errors.name = ''
   errors.address = ''
   errors.keyId = ''
+  testResult.value = ''
 }
+
+const canTest = computed(() => {
+  if (!form.name.trim() || !form.address.trim() || !form.keyId) return false
+  return parseAddress(form.address) !== null
+})
 
 /**
  * Parse address string in format "user@host:port".
@@ -191,8 +204,35 @@ async function handleSubmit() {
   }
 }
 
+async function handleTest() {
+  testResult.value = ''
+  testSuccess.value = false
+  if (!canTest.value) return
+
+  const parsed = parseAddress(form.address)
+  if (!parsed) return
+
+  isTesting.value = true
+  try {
+    await hostsStore.testHost({
+      name: form.name.trim(),
+      host: parsed.host,
+      port: parsed.port,
+      user: parsed.user,
+      keyId: form.keyId,
+    })
+    testResult.value = t('host.testSuccess')
+    testSuccess.value = true
+  } catch (err) {
+    testResult.value = err.response?.data?.error || t('host.testFailed')
+    testSuccess.value = false
+  } finally {
+    isTesting.value = false
+  }
+}
+
 function handleCancel() {
-  router.push('/')
+  router.push({ name: 'Dashboard' })
 }
 
 onMounted(async () => {
@@ -294,6 +334,19 @@ onMounted(async () => {
   margin: 0 0 1rem;
   color: #dc2626;
   font-size: 0.875rem;
+}
+
+.test-message {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+}
+
+.test-message.success {
+  color: #16a34a;
+}
+
+.test-message.error {
+  color: #dc2626;
 }
 
 .form-actions {
