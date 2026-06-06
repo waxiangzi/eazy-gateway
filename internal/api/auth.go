@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -285,8 +286,13 @@ func LoginHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 		}
 
 		clientIP := r.RemoteAddr
+		host, _, err := net.SplitHostPort(clientIP)
+		if err == nil {
+			clientIP = host
+		}
 		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-			clientIP = strings.Split(fwd, ",")[0]
+			parts := strings.Split(fwd, ",")
+			clientIP = strings.TrimSpace(parts[len(parts)-1])
 		}
 
 		if !sessions.checkLoginRateLimit(clientIP) {
@@ -343,7 +349,7 @@ func LoginHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 			MaxAge:   int(sessionMaxAge.Seconds()),
 		})
 
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "token": token})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
@@ -358,10 +364,6 @@ func LogoutHandler(sessions *SessionStore) http.HandlerFunc {
 		cookie, err := r.Cookie(cookieName)
 		if err == nil && cookie.Value != "" {
 			sessions.Delete(cookie.Value)
-		}
-
-		if bt := extractBearerToken(r); bt != "" {
-			sessions.Delete(bt)
 		}
 
 		http.SetCookie(w, &http.Cookie{
@@ -388,11 +390,6 @@ func MeHandler(sessions *SessionStore) http.HandlerFunc {
 
 		cookie, err := r.Cookie(cookieName)
 		if err == nil && cookie.Value != "" && sessions.Get(cookie.Value) {
-			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-			return
-		}
-
-		if bt := extractBearerToken(r); bt != "" && sessions.Get(bt) {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 			return
 		}
@@ -424,11 +421,6 @@ func (m *AuthMiddleware) Wrap(next http.Handler) http.Handler {
 
 		cookie, err := r.Cookie(cookieName)
 		if err == nil && cookie.Value != "" && m.sessions.Get(cookie.Value) {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		if bt := extractBearerToken(r); bt != "" && m.sessions.Get(bt) {
 			next.ServeHTTP(w, r)
 			return
 		}

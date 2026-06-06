@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"unicode"
 
 	"github.com/tun-console/tun-console/internal/db"
@@ -19,6 +20,9 @@ var hostnameRE = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]
 func validHost(s string) bool {
 	if s == "" || len(s) > 253 {
 		return false
+	}
+	if strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]") {
+		return net.ParseIP(s[1:len(s)-1]) != nil
 	}
 	if net.ParseIP(s) != nil {
 		return true

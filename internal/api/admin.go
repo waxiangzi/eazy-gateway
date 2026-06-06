@@ -83,7 +83,7 @@ func ChangePasswordHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 // ResetPasswordHandler handles POST /api/admin/reset-password.
 // Generates a new random admin password, hashes it, and stores it.
 // Returns the plaintext password in the response.
-func ResetPasswordHandler(d *db.DB) http.HandlerFunc {
+func ResetPasswordHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -95,6 +95,8 @@ func ResetPasswordHandler(d *db.DB) http.HandlerFunc {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 			return
 		}
+
+		sessions.ClearAll()
 
 		writeJSON(w, http.StatusOK, map[string]string{
 			"status":   "ok",

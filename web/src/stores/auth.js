@@ -3,19 +3,16 @@ import { ref, computed } from 'vue'
 import client from '../api/client.js'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('token') || null)
+  const isLoggedIn = ref(false)
   const error = ref(null)
   const isLoading = ref(false)
-
-  const isLoggedIn = computed(() => !!token.value)
 
   async function login(password) {
     error.value = null
     isLoading.value = true
     try {
-      const res = await client.post('/login', { password })
-      token.value = res.data.token
-      localStorage.setItem('token', res.data.token)
+      await client.post('/login', { password })
+      isLoggedIn.value = true
       return true
     } catch (err) {
       if (!err.response) {
@@ -23,6 +20,7 @@ export const useAuthStore = defineStore('auth', () => {
       } else {
         error.value = err.response.data?.message || 'Login failed'
       }
+      isLoggedIn.value = false
       return false
     } finally {
       isLoading.value = false
@@ -35,22 +33,20 @@ export const useAuthStore = defineStore('auth', () => {
     } catch {
       // ignore network errors on logout
     } finally {
-      token.value = null
-      localStorage.removeItem('token')
+      isLoggedIn.value = false
     }
   }
 
   async function checkAuth() {
-    if (!token.value) return false
     try {
       await client.get('/me')
+      isLoggedIn.value = true
       return true
     } catch {
-      token.value = null
-      localStorage.removeItem('token')
+      isLoggedIn.value = false
       return false
     }
   }
 
-  return { token, isLoggedIn, error, isLoading, login, logout, checkAuth }
+  return { isLoggedIn, error, isLoading, login, logout, checkAuth }
 })

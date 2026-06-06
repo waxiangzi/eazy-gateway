@@ -65,7 +65,7 @@ func (db *DB) DeleteTraffic(tunnelID string) error {
 
 // RecordTrafficSample stores a traffic snapshot for a tunnel.
 func (db *DB) RecordTrafficSample(tunnelID string, sample *TrafficSample) error {
-	key := fmt.Sprintf("%s/%d", tunnelID, sample.Timestamp)
+	key := fmt.Sprintf("%s/%d", tunnelID, sample.Timestamp*1e3+int64(time.Now().Nanosecond())%1000)
 	return db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucketTrafficSamples)
 		data, err := json.Marshal(sample)
