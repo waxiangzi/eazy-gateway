@@ -20,6 +20,12 @@ import (
 // connectTimeout bounds how long a single dial+handshake attempt may take.
 const connectTimeout = 15 * time.Second
 
+type ProxyRule struct {
+	DomainPattern string
+	Socks5Host    string
+	Socks5Port    int
+}
+
 // Config describes a single SSH tunnel's connection parameters.
 //
 // It is defined locally in this package because the canonical
@@ -28,25 +34,21 @@ const connectTimeout = 15 * time.Second
 // shared type later is mechanical. The engine stores a *Config per tunnel
 // so it can be reused verbatim during reconnects.
 type Config struct {
-	// ID uniquely identifies the tunnel and is used as the engine map key.
 	ID string
-	// Name is a human-friendly label for logging.
 	Name string
-	// Type is one of "local", "remote", or "dynamic". Reserved for the
-	// forwarding tasks; unused by the connection layer.
 	Type string
 
-	// SSHHost is the SSH server hostname or IP to dial.
 	SSHHost string
-	// SSHPort is the SSH server TCP port.
 	SSHPort int
-	// SSHUser is the SSH login user.
 	SSHUser string
 
-	// Forwarding addresses, reserved for later tasks (-L/-R/-D).
 	LocalAddr   string
 	RemoteAddr  string
 	DynamicAddr string
+
+	Socks5Host string
+	Socks5Port int
+	ProxyRules []ProxyRule
 }
 
 // addr returns the "host:port" dial target for the SSH server.

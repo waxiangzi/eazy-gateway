@@ -59,15 +59,16 @@
               </span>
             </div>
             <div class="tunnel-row details">
-              <span class="host-name">{{ hostName(tunnel.hostId) }}</span>
+              <span v-if="tunnel.type !== 'httpToSocks5'" class="host-name">{{ hostName(tunnel.hostId) }}</span>
               <span class="address">
                 {{ tunnel.bindExternal ? '0.0.0.0' : '127.0.0.1' }}:{{ tunnel.listenPort }}
               </span>
-              <span v-if="tunnel.type !== 'dynamic'" class="address">
+              <span v-if="tunnel.type !== 'dynamic' && tunnel.type !== 'httpToSocks5'" class="address">
                 <template v-if="tunnel.type === 'local'">→ remote </template>
                 <template v-else>→ local </template>
                 {{ tunnel.targetHost }}:{{ tunnel.targetPort }}
               </span>
+              <span v-if="tunnel.type === 'httpToSocks5'" class="address">→ SOCKS5</span>
             </div>
             <div class="tunnel-row traffic">
               <span class="traffic-label">{{ t('tunnel.traffic.in') }}</span>

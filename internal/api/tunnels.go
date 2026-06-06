@@ -27,15 +27,24 @@ func NewTunnelHandler(d *db.DB, engine *ssh.TunnelEngine) *TunnelHandler {
 	return &TunnelHandler{db: d, engine: engine}
 }
 
+type proxyRuleRequest struct {
+	DomainPattern string `json:"domainPattern"`
+	Socks5Host    string `json:"socks5Host"`
+	Socks5Port    int    `json:"socks5Port"`
+}
+
 // tunnelRequest is the JSON body accepted by Create and Update.
 type tunnelRequest struct {
-	Name         string `json:"name"`
-	Type         string `json:"type"`
-	HostID       string `json:"hostId"`
-	ListenPort   int    `json:"listenPort"`
-	TargetHost   string `json:"targetHost,omitempty"`
-	TargetPort   int    `json:"targetPort"`
-	BindExternal bool   `json:"bindExternal"`
+	Name         string             `json:"name"`
+	Type         string             `json:"type"`
+	HostID       string             `json:"hostId"`
+	ListenPort   int                `json:"listenPort"`
+	TargetHost   string             `json:"targetHost,omitempty"`
+	TargetPort   int                `json:"targetPort"`
+	BindExternal bool               `json:"bindExternal"`
+	Socks5Host   string             `json:"socks5Host,omitempty"`
+	Socks5Port   int                `json:"socks5Port,omitempty"`
+	ProxyRules   []proxyRuleRequest `json:"proxyRules,omitempty"`
 }
 
 // validate checks that all required fields are present and valid.
@@ -47,9 +56,34 @@ func (h *TunnelHandler) validate(req *tunnelRequest) error {
 		return fmt.Errorf("name must not exceed 128 characters or contain control characters")
 	}
 	switch req.Type {
-	case "local", "remote", "dynamic":
+	case "local", "remote", "dynamic", "httpToSocks5":
 	default:
-		return fmt.Errorf("type must be one of: local, remote, dynamic")
+		return fmt.Errorf("type must be one of: local, remote, dynamic, httpToSocks5")
+	}
+	if req.ListenPort <= 0 || req.ListenPort > 65535 {
+		return fmt.Errorf("listenPort must be between 1 and 65535")
+	}
+	if req.Type == "httpToSocks5" {
+		if len(req.ProxyRules) == 0 {
+			if req.Socks5Host == "" {
+				return fmt.Errorf("socks5Host is required")
+			}
+			if req.Socks5Port <= 0 || req.Socks5Port > 65535 {
+				return fmt.Errorf("socks5Port must be between 1 and 65535")
+			}
+		}
+		for _, rule := range req.ProxyRules {
+			if rule.DomainPattern == "" {
+				return fmt.Errorf("proxyRules domainPattern is required")
+			}
+			if rule.Socks5Host == "" {
+				return fmt.Errorf("proxyRules socks5Host is required")
+			}
+			if rule.Socks5Port <= 0 || rule.Socks5Port > 65535 {
+				return fmt.Errorf("proxyRules socks5Port must be between 1 and 65535")
+			}
+		}
+		return nil
 	}
 	if req.HostID == "" {
 		return fmt.Errorf("hostId is required")
@@ -60,9 +94,6 @@ func (h *TunnelHandler) validate(req *tunnelRequest) error {
 	}
 	if host == nil {
 		return fmt.Errorf("host %q not found", req.HostID)
-	}
-	if req.ListenPort <= 0 || req.ListenPort > 65535 {
-		return fmt.Errorf("listenPort must be between 1 and 65535")
 	}
 	if req.Type != "dynamic" {
 		if req.TargetHost == "" {
@@ -80,6 +111,14 @@ func (h *TunnelHandler) validate(req *tunnelRequest) error {
 
 // toDBTunnel converts a tunnelRequest + ID into a db.TunnelConfig.
 func toDBTunnel(id string, req *tunnelRequest) *db.TunnelConfig {
+	proxyRules := make([]db.ProxyRule, 0, len(req.ProxyRules))
+	for _, r := range req.ProxyRules {
+		proxyRules = append(proxyRules, db.ProxyRule{
+			DomainPattern: r.DomainPattern,
+			Socks5Host:    r.Socks5Host,
+			Socks5Port:    r.Socks5Port,
+		})
+	}
 	return &db.TunnelConfig{
 		ID:           id,
 		Name:         req.Name,
@@ -89,18 +128,33 @@ func toDBTunnel(id string, req *tunnelRequest) *db.TunnelConfig {
 		TargetHost:   req.TargetHost,
 		TargetPort:   req.TargetPort,
 		BindExternal: req.BindExternal,
+		Socks5Host:   req.Socks5Host,
+		Socks5Port:   req.Socks5Port,
+		ProxyRules:   proxyRules,
 	}
 }
 
 // toSSHConfig converts a db.TunnelConfig and its host into an ssh.Config.
 func toSSHConfig(tc *db.TunnelConfig, host *db.Host) *ssh.Config {
 	cfg := &ssh.Config{
-		ID:      tc.ID,
-		Name:    tc.Name,
-		Type:    string(tc.Type),
-		SSHHost: host.Host,
-		SSHPort: host.Port,
-		SSHUser: host.User,
+		ID:         tc.ID,
+		Name:       tc.Name,
+		Type:       string(tc.Type),
+		Socks5Host: tc.Socks5Host,
+		Socks5Port: tc.Socks5Port,
+		ProxyRules: make([]ssh.ProxyRule, 0, len(tc.ProxyRules)),
+	}
+	for _, r := range tc.ProxyRules {
+		cfg.ProxyRules = append(cfg.ProxyRules, ssh.ProxyRule{
+			DomainPattern: r.DomainPattern,
+			Socks5Host:    r.Socks5Host,
+			Socks5Port:    r.Socks5Port,
+		})
+	}
+	if host != nil {
+		cfg.SSHHost = host.Host
+		cfg.SSHPort = host.Port
+		cfg.SSHUser = host.User
 	}
 	switch tc.Type {
 	case db.TunnelTypeLocal:
@@ -111,6 +165,8 @@ func toSSHConfig(tc *db.TunnelConfig, host *db.Host) *ssh.Config {
 		cfg.LocalAddr = tc.TargetAddr()
 	case db.TunnelTypeDynamic:
 		cfg.DynamicAddr = tc.ListenAddr()
+	case db.TunnelTypeHTTPToSocks5:
+		cfg.LocalAddr = tc.ListenAddr()
 	}
 	return cfg
 }
@@ -284,21 +340,27 @@ func (h *TunnelHandler) RestoreEnabled() {
 			log.Printf("INFO: tunnel %q (%s) already %s, skipping restore", tc.ID, tc.Name, s)
 			continue
 		}
-		host := hostMap[tc.HostID]
-		if host == nil {
-			log.Printf("WARN: tunnel %q enabled but host %q not found, skipping", tc.ID, tc.HostID)
-			continue
+
+		var host *db.Host
+		var keyPEM []byte
+		if tc.Type != db.TunnelTypeHTTPToSocks5 {
+			host = hostMap[tc.HostID]
+			if host == nil {
+				log.Printf("WARN: tunnel %q enabled but host %q not found, skipping", tc.ID, tc.HostID)
+				continue
+			}
+			key, err := h.db.GetKey(host.KeyID)
+			if err != nil || key == nil {
+				log.Printf("WARN: tunnel %q enabled but key for host %q not found: %v", tc.ID, host.ID, err)
+				continue
+			}
+			keyPEM, err = os.ReadFile(key.PrivateKeyPath)
+			if err != nil {
+				log.Printf("WARN: tunnel %q enabled but key file unreadable: %v", tc.ID, err)
+				continue
+			}
 		}
-		key, err := h.db.GetKey(host.KeyID)
-		if err != nil || key == nil {
-			log.Printf("WARN: tunnel %q enabled but key for host %q not found: %v", tc.ID, host.ID, err)
-			continue
-		}
-		keyPEM, err := os.ReadFile(key.PrivateKeyPath)
-		if err != nil {
-			log.Printf("WARN: tunnel %q enabled but key file unreadable: %v", tc.ID, err)
-			continue
-		}
+
 		if err := h.engine.Register(toSSHConfig(tc, host), keyPEM); err != nil {
 			log.Printf("WARN: tunnel %q register failed on restore: %v", tc.ID, err)
 			continue
@@ -456,33 +518,38 @@ func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	host, err := h.db.GetHost(tc.HostID)
-	if err != nil {
-		log.Printf("ERROR: get host %q for tunnel %q: %v", tc.HostID, id, err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
-		return
-	}
-	if host == nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "connection host not found"})
-		return
-	}
+	var host *db.Host
+	var keyPEM []byte
+	if tc.Type != db.TunnelTypeHTTPToSocks5 {
+		var err error
+		host, err = h.db.GetHost(tc.HostID)
+		if err != nil {
+			log.Printf("ERROR: get host %q for tunnel %q: %v", tc.HostID, id, err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+		if host == nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "connection host not found"})
+			return
+		}
 
-	key, err := h.db.GetKey(host.KeyID)
-	if err != nil {
-		log.Printf("ERROR: get key %q for host %q: %v", host.KeyID, host.ID, err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
-		return
-	}
-	if key == nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "host key not found"})
-		return
-	}
+		key, err := h.db.GetKey(host.KeyID)
+		if err != nil {
+			log.Printf("ERROR: get key %q for host %q: %v", host.KeyID, host.ID, err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+		if key == nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "host key not found"})
+			return
+		}
 
-	keyPEM, err := os.ReadFile(key.PrivateKeyPath)
-	if err != nil {
-		log.Printf("ERROR: read private key file %q for tunnel %q: %v", key.PrivateKeyPath, id, err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read key"})
-		return
+		keyPEM, err = os.ReadFile(key.PrivateKeyPath)
+		if err != nil {
+			log.Printf("ERROR: read private key file %q for tunnel %q: %v", key.PrivateKeyPath, id, err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read key"})
+			return
+		}
 	}
 
 	if err := h.engine.Register(toSSHConfig(tc, host), keyPEM); err != nil {

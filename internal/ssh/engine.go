@@ -165,6 +165,14 @@ func (e *TunnelEngine) Start(tunnelID string) error {
 	e.tunnels[tunnelID] = t
 	e.mu.Unlock()
 
+	if cfg.Type == "httpToSocks5" {
+		t.mu.Lock()
+		t.status = StatusConnected
+		t.mu.Unlock()
+		t.startForwarding()
+		return nil
+	}
+
 	// Connect outside the engine lock: dialing can block up to the connect
 	// timeout and must not stall other Start/Stop/Status calls.
 	keyPEM := e.getKey(tunnelID)
@@ -378,6 +386,8 @@ func (t *tunnel) startForwarding() {
 		t.startRemoteForward()
 	case "dynamic":
 		t.startDynamicForward()
+	case "httpToSocks5":
+		t.startHTTPToSocks5Forward()
 	}
 }
 

@@ -16,24 +16,35 @@ import (
 type TunnelType string
 
 const (
-	TunnelTypeLocal   TunnelType = "local"
-	TunnelTypeRemote  TunnelType = "remote"
-	TunnelTypeDynamic TunnelType = "dynamic"
+	TunnelTypeLocal        TunnelType = "local"
+	TunnelTypeRemote       TunnelType = "remote"
+	TunnelTypeDynamic      TunnelType = "dynamic"
+	TunnelTypeHTTPToSocks5 TunnelType = "httpToSocks5"
 )
+
+// ProxyRule defines a domain-pattern to SOCKS5 proxy mapping for dynamic proxy mode.
+type ProxyRule struct {
+	DomainPattern string `json:"domainPattern"`
+	Socks5Host    string `json:"socks5Host"`
+	Socks5Port    int    `json:"socks5Port"`
+}
 
 // TunnelConfig holds the configuration for a single SSH tunnel.
 type TunnelConfig struct {
-	ID           string     `json:"id"`
-	Name         string     `json:"name"`
-	Type         TunnelType `json:"type"`
-	HostID       string     `json:"hostId"`
-	ListenPort   int        `json:"listenPort"`
-	TargetHost   string     `json:"targetHost,omitempty"`
-	TargetPort   int        `json:"targetPort"`
-	BindExternal bool       `json:"bindExternal"`
-	Enabled      bool       `json:"enabled"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	UpdatedAt    time.Time  `json:"updatedAt"`
+	ID           string      `json:"id"`
+	Name         string      `json:"name"`
+	Type         TunnelType  `json:"type"`
+	HostID       string      `json:"hostId"`
+	ListenPort   int         `json:"listenPort"`
+	TargetHost   string      `json:"targetHost,omitempty"`
+	TargetPort   int         `json:"targetPort"`
+	BindExternal bool        `json:"bindExternal"`
+	Enabled      bool        `json:"enabled"`
+	Socks5Host   string      `json:"socks5Host,omitempty"`
+	Socks5Port   int         `json:"socks5Port,omitempty"`
+	ProxyRules   []ProxyRule `json:"proxyRules,omitempty"`
+	CreatedAt    time.Time   `json:"createdAt"`
+	UpdatedAt    time.Time   `json:"updatedAt"`
 }
 
 // ListenAddr returns the bind address for this tunnel based on BindExternal.

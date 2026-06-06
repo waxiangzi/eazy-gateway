@@ -90,7 +90,13 @@
       "selectHost": "Select a host",
       "noHostTitle": "No Hosts Available",
       "noHostDesc": "Please create a Host first before creating a connection.",
-      "goToHosts": "Go to Hosts"
+      "goToHosts": "Go to Hosts",
+      "socks5HostLabel": "SOCKS5 Host",
+      "socks5PortLabel": "SOCKS5 Port",
+      "proxyRulesLabel": "Dynamic Proxy Rules",
+      "domainPatternLabel": "Domain Pattern",
+      "addRule": "Add Rule",
+      "removeRule": "Remove"
     },
     "traffic": {
       "title": "Traffic",
@@ -105,9 +111,10 @@
     "types": {
       "local": "Forward (Local-to-Remote)",
       "remote": "Reverse (Remote-to-Local)",
-      "dynamic": "SOCKS5 Proxy"
+      "dynamic": "SOCKS5 Proxy",
+      "httpToSocks5": "HTTP→SOCKS5 Proxy"
     },
-    "typeTooltip": "Forward: forwards a port from your machine through the server to a remote target. Example: access a database on the server-side private network. Reverse: forwards a port from the remote server back to your local machine. Example: expose a local dev server to the remote server. SOCKS5 Proxy: creates a SOCKS proxy through the server. Use it as a proxy in your browser or other apps."
+    "typeTooltip": "Forward: forwards a port from your machine through the server to a remote target. Example: access a database on the server-side private network. Reverse: forwards a port from the remote server back to your local machine. Example: expose a local dev server to the remote server. SOCKS5 Proxy: creates a SOCKS proxy through the server. Use it as a proxy in your browser or other apps. HTTP→SOCKS5 Proxy: converts an HTTP proxy into a SOCKS5 proxy with optional domain-based routing rules."
   },
   "host": {
     "title": "Hosts",
@@ -203,7 +210,9 @@
     "listenPortInvalid": "Listen port must be between 1 and 65535",
     "targetHostRequired": "Target host is required",
     "targetPortRequired": "Target port is required",
-    "targetPortInvalid": "Target port must be between 1 and 65535"
+    "targetPortInvalid": "Target port must be between 1 and 65535",
+    "socks5HostRequired": "SOCKS5 host is required",
+    "socks5PortInvalid": "SOCKS5 port must be between 1 and 65535"
   },
   "errors": {
     "network": "Network error",

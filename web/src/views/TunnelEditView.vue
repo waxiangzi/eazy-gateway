@@ -30,11 +30,12 @@
             <option value="local">{{ t('tunnel.types.local') }}</option>
             <option value="remote">{{ t('tunnel.types.remote') }}</option>
             <option value="dynamic">{{ t('tunnel.types.dynamic') }}</option>
+            <option value="httpToSocks5">{{ t('tunnel.types.httpToSocks5') }}</option>
           </select>
           <p v-if="errors.type" class="field-error">{{ errors.type }}</p>
         </div>
 
-        <div class="form-group">
+        <div v-if="form.type !== 'httpToSocks5'" class="form-group">
           <label for="hostId">{{ t('common.host') }}</label>
           <select id="hostId" v-model="form.hostId">
             <option value="" disabled>{{ t('tunnel.form.selectHost') }}</option>
@@ -67,7 +68,7 @@
         </div>
       </div>
 
-      <div v-if="form.type !== 'dynamic'" class="form-row">
+      <div v-if="form.type !== 'dynamic' && form.type !== 'httpToSocks5'" class="form-row">
         <div class="form-group">
           <label for="targetHost">
             <template v-if="form.type === 'local'">{{ t('tunnel.form.localTargetHostLabel') }}</template>
@@ -86,6 +87,34 @@
           <input id="targetPort" v-model.number="form.targetPort" type="number" min="1" max="65535" placeholder="80" />
           <p v-if="errors.targetPort" class="field-error">{{ errors.targetPort }}</p>
         </div>
+      </div>
+
+      <div v-if="form.type === 'httpToSocks5'" class="form-row">
+        <div class="form-group">
+          <label for="socks5Host">{{ t('tunnel.form.socks5HostLabel') }}</label>
+          <input id="socks5Host" v-model="form.socks5Host" type="text" />
+          <p v-if="errors.socks5Host" class="field-error">{{ errors.socks5Host }}</p>
+        </div>
+        <div class="form-group form-group-narrow">
+          <label for="socks5Port">{{ t('tunnel.form.socks5PortLabel') }}</label>
+          <input id="socks5Port" v-model.number="form.socks5Port" type="number" min="1" max="65535" />
+          <p v-if="errors.socks5Port" class="field-error">{{ errors.socks5Port }}</p>
+        </div>
+      </div>
+
+      <div v-if="form.type === 'httpToSocks5'" class="form-group">
+        <label>{{ t('tunnel.form.proxyRulesLabel') }}</label>
+        <div v-for="(rule, index) in form.proxyRules" :key="index" class="proxy-rule-row">
+          <input v-model="rule.domainPattern" type="text" placeholder="*.example.com" />
+          <input v-model="rule.socks5Host" type="text" />
+          <input v-model.number="rule.socks5Port" type="number" min="1" max="65535" />
+          <button type="button" class="btn-secondary" @click="removeProxyRule(index)">
+            {{ t('tunnel.form.removeRule') }}
+          </button>
+        </div>
+        <button type="button" class="btn-secondary" @click="addProxyRule">
+          + {{ t('tunnel.form.addRule') }}
+        </button>
       </div>
 
       <p v-if="submitError" class="error-message">{{ submitError }}</p>
@@ -130,6 +159,9 @@ const form = reactive({
   targetHost: '',
   targetPort: null,
   bindExternal: false,
+  socks5Host: '',
+  socks5Port: null,
+  proxyRules: [],
 })
 
 const errors = reactive({
@@ -139,6 +171,8 @@ const errors = reactive({
   listenPort: '',
   targetHost: '',
   targetPort: '',
+  socks5Host: '',
+  socks5Port: '',
 })
 
 function clearErrors() {
@@ -148,6 +182,8 @@ function clearErrors() {
   errors.listenPort = ''
   errors.targetHost = ''
   errors.targetPort = ''
+  errors.socks5Host = ''
+  errors.socks5Port = ''
 }
 
 const portTooltipText = computed(() => {
@@ -174,7 +210,7 @@ function validate() {
     errors.name = t('validation.nameRequired')
     valid = false
   }
-  if (!form.hostId) {
+  if (form.type !== 'httpToSocks5' && !form.hostId) {
     errors.hostId = t('validation.hostIdRequired')
     valid = false
   }
@@ -182,7 +218,7 @@ function validate() {
     errors.listenPort = t('validation.listenPortInvalid')
     valid = false
   }
-  if (form.type !== 'dynamic') {
+  if (form.type !== 'dynamic' && form.type !== 'httpToSocks5') {
     if (!form.targetHost.trim()) {
       errors.targetHost = t('validation.targetHostRequired')
       valid = false
@@ -190,6 +226,30 @@ function validate() {
     if (!form.targetPort || form.targetPort <= 0) {
       errors.targetPort = t('validation.targetPortInvalid')
       valid = false
+    }
+  }
+  if (form.type === 'httpToSocks5') {
+    if (form.proxyRules.length === 0) {
+      if (!form.socks5Host.trim()) {
+        errors.socks5Host = t('validation.socks5HostRequired')
+        valid = false
+      }
+      if (!form.socks5Port || form.socks5Port <= 0 || form.socks5Port > 65535) {
+        errors.socks5Port = t('validation.socks5PortInvalid')
+        valid = false
+      }
+    }
+    for (let i = 0; i < form.proxyRules.length; i++) {
+      const rule = form.proxyRules[i]
+      if (!rule.domainPattern.trim()) {
+        valid = false
+      }
+      if (!rule.socks5Host.trim()) {
+        valid = false
+      }
+      if (!rule.socks5Port || rule.socks5Port <= 0 || rule.socks5Port > 65535) {
+        valid = false
+      }
     }
   }
 
@@ -208,8 +268,11 @@ async function handleSubmit() {
       hostId: form.hostId,
       listenPort: Number(form.listenPort),
       targetHost: form.targetHost,
-      targetPort: form.type === 'dynamic' ? 0 : Number(form.targetPort),
+      targetPort: form.type === 'dynamic' || form.type === 'httpToSocks5' ? 0 : Number(form.targetPort),
       bindExternal: form.bindExternal,
+      socks5Host: form.socks5Host || '',
+      socks5Port: Number(form.socks5Port) || 0,
+      proxyRules: form.proxyRules.map(r => ({ domainPattern: r.domainPattern, socks5Host: r.socks5Host, socks5Port: Number(r.socks5Port) })),
     }
 
     if (isEditMode.value) {
@@ -233,11 +296,29 @@ function handleCancel() {
   router.push({ name: 'Dashboard' })
 }
 
+function addProxyRule() {
+  form.proxyRules.push({ domainPattern: '', socks5Host: '', socks5Port: null })
+}
+
+function removeProxyRule(index) {
+  form.proxyRules.splice(index, 1)
+}
+
 watch(() => form.type, (newType, oldType) => {
   if (newType !== oldType) {
     if (newType === 'dynamic') {
       form.targetHost = ''
       form.targetPort = null
+    }
+    if (newType === 'httpToSocks5') {
+      form.targetHost = ''
+      form.targetPort = null
+      form.hostId = ''
+    }
+    if (oldType === 'httpToSocks5') {
+      form.socks5Host = ''
+      form.socks5Port = null
+      form.proxyRules = []
     }
   }
 })
@@ -265,6 +346,9 @@ onMounted(async () => {
       form.targetHost = tunnel.targetHost || ''
       form.targetPort = tunnel.targetPort || null
       form.bindExternal = tunnel.bindExternal || false
+      form.socks5Host = tunnel.socks5Host || ''
+      form.socks5Port = tunnel.socks5Port || null
+      form.proxyRules = Array.isArray(tunnel.proxyRules) ? tunnel.proxyRules.map(r => ({ ...r, socks5Port: r.socks5Port || null })) : []
     }
   } catch (err) {
     if (!err.response) {
@@ -341,6 +425,13 @@ onMounted(async () => {
 .form-row {
   display: flex;
   gap: 1rem;
+}
+
+.proxy-rule-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
 }
 
 .form-group-narrow {

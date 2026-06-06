@@ -90,7 +90,13 @@
       "selectHost": "选择主机",
       "noHostTitle": "没有可用主机",
       "noHostDesc": "请先创建一个主机，然后才能创建连接。",
-      "goToHosts": "前往主机"
+      "goToHosts": "前往主机",
+      "socks5HostLabel": "SOCKS5 主机",
+      "socks5PortLabel": "SOCKS5 端口",
+      "proxyRulesLabel": "动态代理规则",
+      "domainPatternLabel": "域名匹配",
+      "addRule": "添加规则",
+      "removeRule": "删除"
     },
     "traffic": {
       "title": "流量",
@@ -105,9 +111,10 @@
     "types": {
       "local": "正向代理 (本地→远程)",
       "remote": "反向代理 (远程→本地)",
-      "dynamic": "SOCKS5 动态代理"
+      "dynamic": "SOCKS5 动态代理",
+      "httpToSocks5": "HTTP→SOCKS5 代理"
     },
-    "typeTooltip": "正向代理：将本地端口通过服务器转发到远程目标。例如：访问服务器侧私有网络中的数据库。反向代理：将远程服务器的端口转发回本地机器。例如：将本地开发服务器暴露给远程服务器。SOCKS5 动态代理：通过服务器创建 SOCKS 代理。可在浏览器或其他应用中用作代理。"
+    "typeTooltip": "正向代理：将本地端口通过服务器转发到远程目标。例如：访问服务器侧私有网络中的数据库。反向代理：将远程服务器的端口转发回本地机器。例如：将本地开发服务器暴露给远程服务器。SOCKS5 动态代理：通过服务器创建 SOCKS 代理。可在浏览器或其他应用中用作代理。HTTP→SOCKS5 代理：将 HTTP 代理转换为 SOCKS5 代理，支持基于域名的动态路由规则。"
   },
   "host": {
     "title": "主机",
@@ -203,7 +210,9 @@
     "listenPortInvalid": "监听端口必须在 1-65535 之间",
     "targetHostRequired": "目标主机不能为空",
     "targetPortRequired": "目标端口不能为空",
-    "targetPortInvalid": "目标端口必须在 1-65535 之间"
+    "targetPortInvalid": "目标端口必须在 1-65535 之间",
+    "socks5HostRequired": "SOCKS5 主机不能为空",
+    "socks5PortInvalid": "SOCKS5 端口必须在 1-65535 之间"
   },
   "errors": {
     "network": "网络错误",
