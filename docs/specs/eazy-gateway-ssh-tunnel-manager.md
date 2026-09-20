@@ -1,6 +1,6 @@
 # eazy-gateway：基于 Web 的 SSH 隧道管理器
 
-> 回溯性需求 spec。本项目已实现；本文档从 `.omo/plans/tun-console.md` 的原始计划出发，结合当前代码库的**实际实现**综合整理，作为项目的正式需求记录。凡计划与实现不一致处，以实现为准并显式标注。
+> 回溯性需求 spec。本文档由项目的原始计划整理而来，并以当前代码库的**实际实现**为准，作为项目的正式需求记录。凡计划与实现不一致处，以实现为准并显式标注。
 
 ## Problem Statement
 
@@ -44,7 +44,7 @@
 
 ### 认证与安全
 13. As a 管理员, I want 用单个密码登录控制台, so that 未授权者无法访问。
-14. As a 管理员, I want 首次启动时系统自动生成随机管理员密码并打印/落盘, so that 我有一个安全的初始凭据。
+14. As a 管理员, I want 首次启动时系统自动生成随机管理员密码并落盘到 `data/initial-password.txt`, so that 我有一个安全的初始凭据。
 15. As a 管理员, I want 修改管理员密码, so that 我能定期轮换凭据。
 16. As a 管理员, I want 修改密码后所有既有会话失效, so that 泄露的会话立即作废。
 17. As a 管理员, I want 会话通过 cookie 维持, so that 我在浏览器里保持登录状态。
@@ -107,7 +107,7 @@
 
 ## Implementation Decisions
 
-### 命名与配置（本次会话变更）
+### 命名与配置
 - 项目、Go module、二进制、systemd 服务、cookie 名、DB 文件名等**统一命名为 `eazy-gateway`**（原 `tun-console`）。Go module 路径为 `github.com/eazy-gateway/eazy-gateway`。
 - 默认 HTTP 端口统一为 **8022**，可通过 `--port` flag 或 `PORT` 环境变量覆盖（flag 优先）。数据目录默认 `./data`，可通过 `--data` 或 `DATA_DIRECTORY` 覆盖。
 - 配置仅通过命令行 flag 与上述环境变量控制。`config.example.yaml` 仅作参考，**运行时不加载**。
@@ -116,7 +116,7 @@
 - 后端 Go + `golang.org/x/crypto/ssh`；前端 Vue 3 + Pinia + Vue Router（hash 模式）+ Vue I18n。
 - 前端通过 `go:embed`（`embed` build tag）内嵌进 Go 二进制；`noembed` tag 时从磁盘的 `web/dist` 提供，便于开发。
 - 持久化用 bbolt（纯 Go 嵌入式 KV，单文件，无 CGO），通过本地 `replace` 指向自研的 `bbolt_shim` 兼容模块。选择 bbolt 而非 SQLite 是刻意的架构决策（偏好纯 KV、无 CGO）。
-- 数据模型将 **Host（SSH 服务器配置）** 与 **Tunnel（转发规则）** 解耦，隧道通过 `hostId` 引用主机；密钥以文件存于磁盘，DB 中以路径引用。
+- 数据模型将 **Host（SSH 服务器配置）** 与 **Tunnel（转发规则）** 解耦，隧道通过 `hostId` 引用主机；私钥以文件存于密钥目录（`data/keys/`），**用管理员密码加密静态存储**，DB 中以路径引用。
 
 ### 模块划分
 - `internal/db`：bbolt 持久化层，覆盖 host、tunnel、key、traffic、settings、admin 六类实体，读用 View、写用 Update 事务。
@@ -153,18 +153,19 @@
 ### 部署
 - 多阶段 Dockerfile：node 构建前端 → golang 构建二进制 → distroless 运行时镜像，`EXPOSE 8022`。
 - `--install` 生成用户级 systemd unit（`~/.config/systemd/user/eazy-gateway.service`），daemon-reload、enable、start 一气呵成。
-- 首次启动：创建 `data/eazy-gateway.db`；若无密钥则在 `data/keys/default` 生成 Ed25519 密钥对；生成随机管理员密码并打印到 stdout、写入 `data/initial-password.txt`。
+- 首次启动：创建 `data/eazy-gateway.db`（0600）；若无密钥则在 `data/keys/default` 生成 Ed25519 密钥对（0600）；生成随机管理员密码，**只**写入 `data/initial-password.txt`（0600）——既不打印到 stdout，也不进日志。管理员密码同时是私钥的加密口令，因此它只落盘到这一个 0600 文件。
 
 ## Testing Decisions
 
 - **好测试的定义**：只验证外部可观测行为，不绑定内部实现细节。对本项目而言，"外部行为"指编译后二进制的 CLI 输出、HTTP API 的状态码与响应字段、以及数据目录中产生的文件/文件名——而非内部函数签名或私有状态。
-- **首选接缝（单一、最高层）**：编译后二进制的黑盒行为。
+- **计划的首选接缝（单一、最高层）**：编译后二进制的黑盒行为。**实际落地时自动化测试落在包级接缝（`httptest` + 临时数据目录），二进制黑盒检查作为发布前验收保留（见末条）**——差异按本文档规则显式标注。该接缝原本要覆盖的行为：
   - `go build`（含 `-tags embed`）成功即验证了命名/import/目录一致性这一整类正确性。
   - `--help` 输出 `--port` 默认为 8022；不设 flag 时监听 8022，`--port N` 与 `PORT=N` 均能覆盖。
   - 首次启动在数据目录生成 `eazy-gateway.db`（而非旧名）。
   - 受保护端点在无凭据时返回鉴权错误；携带正确 cookie/Bearer 时可访问。
 - **被测模块**：优先在二进制/HTTP 边界测试，覆盖 auth、hosts、tunnels、keys、settings 各 handler 的外部契约，以及隧道引擎的可观测状态转换（通过 status 端点）。
-- **既有测试范式（prior art）**：项目目前**无自动化测试**（`go test ./...` 报 `no test files`）。既有的验证范式是 `.omo/evidence/` 中的 **agent-executed QA**——用 curl 对 HTTP API 发请求并断言状态码/响应字段、用 shell 检查进程与文件。新增测试应沿用这一黑盒风格；若引入 Go test 框架，应以 `httptest` 在 HTTP 边界测试，而非针对内部函数。
+- **既有测试（prior art）**：`internal/api/keys_test.go` 在 `httptest` 边界覆盖密钥生命周期（删除密钥、末尾密钥删除后自动重建默认密钥、并发删除、被主机引用时拒绝、重加密不动密钥库外的文件）；`cmd/eazy-gateway/main_test.go` 与 `internal/bbolt_shim/bbolt_test.go` 覆盖首次启动/首次落盘产生的文件权限与日志行为。CI 的 `test` job 执行 `gofmt -l`、`go vet` 与两个模块的 `go test -race`，并阻断 `build-go` 与 `release`。
+- **发布前验收**：对编译出的二进制做黑盒检查——curl 打 HTTP API 断言状态码与响应字段、shell 检查数据目录中的文件名与权限。这是最靠近真实部署的接缝，与上面的包级测试互为补充。
 
 ## Out of Scope
 
