@@ -11,8 +11,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/tun-console/tun-console/internal/db"
-	"github.com/tun-console/tun-console/internal/ssh"
+	"github.com/eazy-gateway/eazy-gateway/internal/db"
+	"github.com/eazy-gateway/eazy-gateway/internal/ssh"
 )
 
 var hostnameRE = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$`)

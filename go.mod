@@ -1,4 +1,4 @@
-module github.com/tun-console/tun-console
+module github.com/eazy-gateway/eazy-gateway
 
 go 1.26.3
 

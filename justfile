@@ -1,10 +1,10 @@
-# tun-console 构建与任务自动化
+# eazy-gateway 构建与任务自动化
 # 使用 `just <recipe>` 运行，详见 https://github.com/casey/just
 
 # --- 变量 ---
-binary_name := "tun-console"
+binary_name := "eazy-gateway"
 build_dir   := "build"
-go_mod_dir  := "cmd/tun-console"
+go_mod_dir  := "cmd/eazy-gateway"
 
 # --- 配方 ---
 
@@ -14,10 +14,10 @@ build-web:
 
 # 构建完整项目（前端 + Go 二进制）
 build: build-web
-    rm -rf cmd/tun-console/dist
-    cp -r web/dist cmd/tun-console/dist
-    go build -tags embed -o '{{build_dir}}/{{binary_name}}' ./cmd/tun-console/
-    rm -rf cmd/tun-console/dist
+    rm -rf cmd/eazy-gateway/dist
+    cp -r web/dist cmd/eazy-gateway/dist
+    go build -tags embed -o '{{build_dir}}/{{binary_name}}' ./cmd/eazy-gateway/
+    rm -rf cmd/eazy-gateway/dist
 
 # 构建并运行
 run: build
@@ -51,7 +51,7 @@ dev:
     fi
 
     # 确保前端 dist 存在以便 Go noembed 模式能提供服务
-    if [ ! -d web/dist ] && [ ! -d cmd/tun-console/dist ]; then
+    if [ ! -d web/dist ] && [ ! -d cmd/eazy-gateway/dist ]; then
         just build-web
     fi
 
@@ -65,7 +65,7 @@ dev:
         '[build]' \
         '  args_bin = []' \
         '  bin = "./tmp/main"' \
-        '  cmd = "go build -o ./tmp/main ./cmd/tun-console/"' \
+        '  cmd = "go build -o ./tmp/main ./cmd/eazy-gateway/"' \
         '  delay = 1000' \
         '  exclude_dir = ["assets", "tmp", "vendor", "web/node_modules", "web/dist", "build"]' \
         '  exclude_file = []' \
@@ -113,7 +113,7 @@ clean:
     rm -rf '{{build_dir}}/'
     rm -rf web/node_modules/
     rm -rf web/dist/
-    rm -rf cmd/tun-console/dist/
+    rm -rf cmd/eazy-gateway/dist/
     rm -rf tmp/
     rm -f .air.toml
 

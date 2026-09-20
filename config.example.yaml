@@ -1,9 +1,9 @@
-# tun-console configuration
+# eazy-gateway configuration
 # Copy this file to config.yaml and adjust as needed.
 
 # HTTP server listen address
-# Default: :8080
-listen_address: ":8080"
+# Default: :8022
+listen_address: ":8022"
 
 # Directory for persistent data (e.g., SSH host keys, user data)
 # Default: ./data

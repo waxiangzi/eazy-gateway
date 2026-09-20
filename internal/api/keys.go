@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/tun-console/tun-console/internal/db"
+	"github.com/eazy-gateway/eazy-gateway/internal/db"
 )
 
 // KeysHandler handles SSH key management endpoints.

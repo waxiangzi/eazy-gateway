@@ -5,8 +5,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/tun-console/tun-console/internal/crypto"
-	"github.com/tun-console/tun-console/internal/db"
+	"github.com/eazy-gateway/eazy-gateway/internal/crypto"
+	"github.com/eazy-gateway/eazy-gateway/internal/db"
 )
 
 // ChangePasswordHandler handles POST /api/admin/change-password.

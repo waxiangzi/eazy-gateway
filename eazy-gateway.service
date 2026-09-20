@@ -1,12 +1,12 @@
 [Unit]
-Description=tun-console web service
+Description=eazy-gateway web service
 After=network.target
 
 [Service]
 Type=simple
 Restart=on-failure
 RestartSec=5
-ExecStart=/usr/local/bin/tun-console
+ExecStart=/usr/local/bin/eazy-gateway
 KillSignal=SIGTERM
 TimeoutStopSec=15
 

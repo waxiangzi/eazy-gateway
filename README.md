@@ -1,11 +1,11 @@
-# tun-console
+# eazy-gateway
 
 A web-based SSH tunnel manager built with Go and Vue 3.
 
 ## Features
 
 - **SSH Host Management** — centrally manage SSH server configs (host, port, user, key) independently from tunnels
-- **Tunnel Types** — local port forwarding, remote port forwarding, and dynamic SOCKS5 proxy
+- **Tunnel Types** — local port forwarding, remote port forwarding, dynamic SOCKS5 proxy, and HTTP-to-SOCKS5 proxy
 - **Traffic Statistics** — real-time byte counters and per-tunnel traffic trend charts
 - **SSH Keys** — Ed25519 key pairs stored on filesystem; auto-generates a default key on first run
 - **Admin Authentication** — session-based login with cookie or Bearer token support
@@ -13,7 +13,7 @@ A web-based SSH tunnel manager built with Go and Vue 3.
 - **Auto-Restore** — automatically reconnects tunnels that were running before the last shutdown
 - **Graceful Shutdown** — cleans up SSH connections and saves traffic counters on SIGTERM/SIGINT
 - **Single Static Binary** — embeds the Vue SPA into the Go binary for easy distribution
-- **One-Command Install** — `./build/tun-console --install` sets up a user-level systemd service
+- **One-Command Install** — `./build/eazy-gateway --install` sets up a user-level systemd service
 - **Docker Support** — multi-stage Dockerfile with distroless runtime image
 - **Multi-Language UI** — Chinese and English (Vue I18n)
 
@@ -36,12 +36,21 @@ A web-based SSH tunnel manager built with Go and Vue 3.
 separately. A tunnel references a host by ID. Keys are stored as files on disk and
 referenced by path in the database.
 
+**Tunnel Types**
+
+| Type | Description |
+|------|-------------|
+| `local` | Local port forwarding (listen locally, forward through SSH to a remote target) |
+| `remote` | Remote port forwarding (listen on the SSH server, forward back to a local target) |
+| `dynamic` | Dynamic SOCKS5 proxy over the SSH connection |
+| `httpToSocks5` | Local HTTP proxy that relays through an upstream SOCKS5 proxy; supports CONNECT tunnelling, direct HTTP relay, and per-domain routing rules (`*.example.com` wildcards) |
+
 ## Build
 
 Requires [just](https://github.com/casey/just), Node.js 22+, and Go 1.26+.
 
 ```bash
-just build        # build web + Go binary → build/tun-console
+just build        # build web + Go binary → build/eazy-gateway
 just build-web    # build Vue SPA only
 just dev          # backend hot-reload via air
 just docker-build # build Docker image
@@ -55,37 +64,38 @@ just clean        # remove build artifacts
 ### Quick Start
 
 ```bash
-./build/tun-console              # default: port 3100, data ./data
-./build/tun-console --port 8080  # custom port
-./build/tun-console --data /var/lib/tun-console  # custom data directory
+./build/eazy-gateway                # default: port 8022, data ./data
+./build/eazy-gateway --port 9000    # custom port
+PORT=9000 ./build/eazy-gateway      # custom port via environment variable
+./build/eazy-gateway --data /var/lib/eazy-gateway  # custom data directory
 ```
 
 ### CLI Commands
 
-When a tun-console server is already running, the binary acts as a CLI client via a local Unix socket:
+When an eazy-gateway server is already running, the binary acts as a CLI client via a local Unix socket:
 
 ```bash
 # List all tunnels
-tun-console list
+eazy-gateway list
 
 # Start / stop / restart a tunnel
-tun-console start <tunnel-id>
-tun-console stop <tunnel-id>
-tun-console restart <tunnel-id>
+eazy-gateway start <tunnel-id>
+eazy-gateway stop <tunnel-id>
+eazy-gateway restart <tunnel-id>
 
 # Check tunnel status
-tun-console status <tunnel-id>
+eazy-gateway status <tunnel-id>
 
 # Reset admin password (generates a new random password)
-tun-console reset-password
+eazy-gateway reset-password
 ```
 
 ### Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--port` | `3100` | HTTP server port |
-| `--data` | `./data` | Persistent data directory (DB, keys, logs) |
+| `--port` | `8022` (env `PORT`) | HTTP server port |
+| `--data` | `./data` (env `DATA_DIRECTORY`) | Persistent data directory (DB, keys, logs) |
 | `--serve` | `false` | Run in background (daemon mode) |
 | `--install` | `false` | Install as a user-level systemd service and start it |
 | `--secure-cookies` | `false` | Set `Secure` flag on session cookies (use when behind TLS proxy) |
@@ -95,34 +105,34 @@ tun-console reset-password
 The recommended way to run persistently on Linux:
 
 ```bash
-sudo cp build/tun-console /usr/local/bin/tun-console
-tun-console --install
+sudo cp build/eazy-gateway /usr/local/bin/eazy-gateway
+eazy-gateway --install
 ```
 
-This creates a user service at `~/.config/systemd/user/tun-console.service`, enables it,
+This creates a user service at `~/.config/systemd/user/eazy-gateway.service`, enables it,
 and starts it immediately.
 
 Alternatively, manually:
 
 ```bash
-cp build/tun-console /usr/local/bin/tun-console
-sudo cp tun-console.service /etc/systemd/system/
+cp build/eazy-gateway /usr/local/bin/eazy-gateway
+sudo cp eazy-gateway.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now tun-console
+sudo systemctl enable --now eazy-gateway
 ```
 
 ### Docker
 
 ```bash
 # Build
-docker build -t tun-console .
+docker build -t eazy-gateway .
 
 # Run
 docker run -d \
-  -p 3100:3100 \
-  -v tun-console-data:/data \
-  tun-console \
-  --port 3100 --data /data
+  -p 8022:8022 \
+  -v eazy-gateway-data:/data \
+  eazy-gateway \
+  --port 8022 --data /data
 ```
 
 ## Development
@@ -131,7 +141,7 @@ docker run -d \
 
 ```bash
 cd web && npm install && npm run build   # build SPA once
-go run ./cmd/tun-console                  # serves web/dist from disk
+go run ./cmd/eazy-gateway                 # serves web/dist from disk
 ```
 
 Run Go tests:
@@ -146,7 +156,7 @@ go test ./internal/...
 cd web && npm install && npm run dev
 ```
 
-The dev server proxies API requests to `http://localhost:3100` by default (see `web/vite.config.js`).
+The dev server proxies API requests to `http://localhost:8022` by default (see `web/vite.config.js`).
 
 ### Backend Hot-Reload
 
@@ -158,17 +168,18 @@ Uses [air](https://github.com/air-verse/air) to auto-rebuild the Go binary on fi
 
 ## Configuration
 
-Configuration is controlled via command-line flags. Example:
+Configuration is controlled via command-line flags (and the `PORT` / `DATA_DIRECTORY`
+environment variables). Example:
 
 ```bash
-./build/tun-console --port 8080 --data ./data --secure-cookies
+./build/eazy-gateway --port 9000 --data ./data --secure-cookies
 ```
 
 A `config.example.yaml` exists for reference but is **not loaded at runtime** — copy values
 from it into your deployment scripts or systemd unit as needed.
 
 First boot behavior:
-- Creates `data/tun-console.db` (bbolt) for hosts, tunnels, settings, and admin hash.
+- Creates `data/eazy-gateway.db` (bbolt) for hosts, tunnels, settings, and admin hash.
 - Generates Ed25519 SSH key pair at `data/keys/default` if no keys exist.
 - Prints the auto-generated admin password to stdout and saves it to `data/initial-password.txt`.
 
@@ -243,7 +254,7 @@ authenticated session via cookie or `Authorization: Bearer <token>` header.
 
 ```
 .
-├── cmd/tun-console/         # Go entry point + embed/noembed build tags
+├── cmd/eazy-gateway/        # Go entry point + embed/noembed build tags
 ├── internal/
 │   ├── api/                 # HTTP handlers (auth, hosts, tunnels, keys, settings, admin)
 │   ├── crypto/              # Password hashing, key generation, key encryption
@@ -260,7 +271,7 @@ authenticated session via cookie or `Authorization: Bearer <token>` header.
 │   └── vite.config.js
 ├── Dockerfile               # Multi-stage build (node → golang → distroless)
 ├── justfile                 # Build automation
-├── tun-console.service      # Example systemd unit file
+├── eazy-gateway.service     # Example systemd unit file
 └── config.example.yaml      # Example configuration reference
 ```
 

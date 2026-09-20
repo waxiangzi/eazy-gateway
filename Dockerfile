@@ -11,11 +11,12 @@ COPY go.mod go.sum ./
 COPY internal/bbolt_shim/ ./internal/bbolt_shim/
 RUN go mod download
 COPY . .
-COPY --from=web-builder /web/dist/ ./cmd/tun-console/dist/
-RUN CGO_ENABLED=0 go build -tags embed -o /tun-console ./cmd/tun-console/
+COPY --from=web-builder /web/dist/ ./cmd/eazy-gateway/dist/
+RUN CGO_ENABLED=0 go build -tags embed -o /eazy-gateway ./cmd/eazy-gateway/
 
 # Stage 3: Minimal runtime image
 FROM gcr.io/distroless/static-debian12:nonroot
-COPY --from=go-builder /tun-console /usr/local/bin/tun-console
+COPY --from=go-builder /eazy-gateway /usr/local/bin/eazy-gateway
 COPY --from=go-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-ENTRYPOINT ["/usr/local/bin/tun-console"]
+EXPOSE 8022
+ENTRYPOINT ["/usr/local/bin/eazy-gateway"]

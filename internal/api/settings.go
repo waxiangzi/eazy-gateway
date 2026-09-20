@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/tun-console/tun-console/internal/db"
+	"github.com/eazy-gateway/eazy-gateway/internal/db"
 )
 
 // SettingsHandler handles GET /api/settings (public) and PUT /api/settings (authenticated).

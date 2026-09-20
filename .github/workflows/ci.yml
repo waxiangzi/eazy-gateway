@@ -68,19 +68,19 @@ jobs:
 
       - name: 复制前端到 embed 目录
         run: |
-          mkdir -p cmd/tun-console/dist
-          cp -r web/dist/* cmd/tun-console/dist/
+          mkdir -p cmd/eazy-gateway/dist
+          cp -r web/dist/* cmd/eazy-gateway/dist/
 
       - name: 构建 Go 二进制 (${{ matrix.arch }})
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.arch }} \
-            go build -tags embed -v -o build/tun-console-${{ matrix.arch }} ./cmd/tun-console/
+            go build -tags embed -v -o build/eazy-gateway-${{ matrix.arch }} ./cmd/eazy-gateway/
 
       - name: 上传二进制产物 (${{ matrix.arch }})
         uses: actions/upload-artifact@v4
         with:
-          name: tun-console-${{ matrix.arch }}
-          path: build/tun-console-${{ matrix.arch }}
+          name: eazy-gateway-${{ matrix.arch }}
+          path: build/eazy-gateway-${{ matrix.arch }}
           retention-days: 1
 
   # ── 3. 发布 Release（打 tag 时触发） ────────────────
@@ -98,25 +98,25 @@ jobs:
       - name: 下载 x86_64 二进制
         uses: actions/download-artifact@v4
         with:
-          name: tun-console-amd64
+          name: eazy-gateway-amd64
           path: release/
 
       - name: 下载 arm64 二进制
         uses: actions/download-artifact@v4
         with:
-          name: tun-console-arm64
+          name: eazy-gateway-arm64
           path: release/
 
       - name: 重命名二进制文件
         run: |
-          mv release/tun-console-amd64 release/env-console-linux-amd64
-          mv release/tun-console-arm64 release/env-console-linux-arm64
+          mv release/eazy-gateway-amd64 release/eazy-gateway-linux-amd64
+          mv release/eazy-gateway-arm64 release/eazy-gateway-linux-arm64
           chmod +x release/*
 
       - name: 创建 Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/env-console-linux-amd64
-            release/env-console-linux-arm64
+            release/eazy-gateway-linux-amd64
+            release/eazy-gateway-linux-arm64
           generate_release_notes: true

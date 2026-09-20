@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import client from '../api/client.js'
 
 export const useAuthStore = defineStore('auth', () => {
-  const isLoggedIn = ref(localStorage.getItem('tun-console-auth') === 'true')
+  const isLoggedIn = ref(localStorage.getItem('eazy-gateway-auth') === 'true')
   const error = ref(null)
   const isLoading = ref(false)
   const initialized = ref(false)
@@ -14,7 +14,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await client.post('/login', { password })
       isLoggedIn.value = true
-      localStorage.setItem('tun-console-auth', 'true')
+      localStorage.setItem('eazy-gateway-auth', 'true')
       return true
     } catch (err) {
       if (!err.response) {
@@ -23,7 +23,7 @@ export const useAuthStore = defineStore('auth', () => {
         error.value = err.response.data?.message || 'Login failed'
       }
       isLoggedIn.value = false
-      localStorage.removeItem('tun-console-auth')
+      localStorage.removeItem('eazy-gateway-auth')
       return false
     } finally {
       isLoading.value = false
@@ -37,7 +37,7 @@ export const useAuthStore = defineStore('auth', () => {
       // ignore network errors on logout
     } finally {
       isLoggedIn.value = false
-      localStorage.removeItem('tun-console-auth')
+      localStorage.removeItem('eazy-gateway-auth')
     }
   }
 
@@ -45,11 +45,11 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await client.get('/me')
       isLoggedIn.value = true
-      localStorage.setItem('tun-console-auth', 'true')
+      localStorage.setItem('eazy-gateway-auth', 'true')
       return true
     } catch {
       isLoggedIn.value = false
-      localStorage.removeItem('tun-console-auth')
+      localStorage.removeItem('eazy-gateway-auth')
       return false
     } finally {
       initialized.value = true

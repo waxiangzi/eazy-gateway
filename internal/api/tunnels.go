@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tun-console/tun-console/internal/db"
-	"github.com/tun-console/tun-console/internal/ssh"
+	"github.com/eazy-gateway/eazy-gateway/internal/db"
+	"github.com/eazy-gateway/eazy-gateway/internal/ssh"
 )
 
 // TunnelHandler holds shared dependencies for tunnel CRUD handlers.

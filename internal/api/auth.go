@@ -1,4 +1,4 @@
-// Package api provides HTTP handlers and middleware for the tun-console REST API.
+// Package api provides HTTP handlers and middleware for the eazy-gateway REST API.
 package api
 
 import (
@@ -14,12 +14,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tun-console/tun-console/internal/crypto"
-	"github.com/tun-console/tun-console/internal/db"
+	"github.com/eazy-gateway/eazy-gateway/internal/crypto"
+	"github.com/eazy-gateway/eazy-gateway/internal/db"
 )
 
 const (
-	cookieName    = "tun-console-session"
+	cookieName    = "eazy-gateway-session"
 	sessionMaxAge = 24 * time.Hour
 )
 

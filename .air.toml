@@ -5,7 +5,7 @@ tmp_dir = "tmp"
 [build]
   args_bin = []
   bin = "./tmp/main"
-  cmd = "go build -o ./tmp/main ./cmd/tun-console/"
+  cmd = "go build -o ./tmp/main ./cmd/eazy-gateway/"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "web/node_modules", "web/dist", "build"]
   exclude_file = []

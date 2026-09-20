@@ -22,16 +22,16 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/tun-console/tun-console/internal/api"
-	"github.com/tun-console/tun-console/internal/crypto"
-	"github.com/tun-console/tun-console/internal/db"
-	"github.com/tun-console/tun-console/internal/ssh"
+	"github.com/eazy-gateway/eazy-gateway/internal/api"
+	"github.com/eazy-gateway/eazy-gateway/internal/crypto"
+	"github.com/eazy-gateway/eazy-gateway/internal/db"
+	"github.com/eazy-gateway/eazy-gateway/internal/ssh"
 )
 
 func main() {
 	serve := flag.Bool("serve", false, "Run in background")
 	install := flag.Bool("install", false, "Install as systemd service")
-	port := flag.Int("port", 3100, "HTTP server port")
+	port := flag.Int("port", getEnvInt("PORT", 8022), "HTTP server port")
 	dataDir := flag.String("data", getEnv("DATA_DIRECTORY", "./data"), "Data directory for persistent storage")
 	secureCookies := flag.Bool("secure-cookies", false, "Set Secure flag on session cookies (enable when behind TLS-terminating proxy)")
 	flag.Parse()
@@ -41,14 +41,14 @@ func main() {
 		if installDataDir == "./data" {
 			home, err := os.UserHomeDir()
 			if err == nil {
-				installDataDir = filepath.Join(home, ".tun-console", "data")
+				installDataDir = filepath.Join(home, ".eazy-gateway", "data")
 			}
 		}
 		if err := installSystemd(*port, installDataDir); err != nil {
 			fmt.Fprintf(os.Stderr, "install failed: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("Successfully installed and started tun-console as a user systemd service.")
+		fmt.Println("Successfully installed and started eazy-gateway as a user systemd service.")
 		fmt.Printf("Data directory: %s\n", installDataDir)
 		os.Exit(0)
 	}
@@ -70,7 +70,7 @@ func daemonize(port int, dataDir string) {
 		os.Exit(1)
 	}
 
-	pidfile := filepath.Join(dataDir, "tun-console.pid")
+	pidfile := filepath.Join(dataDir, "eazy-gateway.pid")
 	if data, err := os.ReadFile(pidfile); err == nil {
 		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
 		if pid > 0 && processExists(pid) {
@@ -79,7 +79,7 @@ func daemonize(port int, dataDir string) {
 		}
 	}
 
-	logFile := filepath.Join(dataDir, "tun-console.log")
+	logFile := filepath.Join(dataDir, "eazy-gateway.log")
 	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "open log file: %v\n", err)
@@ -130,7 +130,7 @@ func runServer(port int, dataDir string, secureCookies bool) {
 		os.Exit(1)
 	}
 
-	pidfile := filepath.Join(dataDir, "tun-console.pid")
+	pidfile := filepath.Join(dataDir, "eazy-gateway.pid")
 	if data, err := os.ReadFile(pidfile); err == nil {
 		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
 		if pid > 0 && processExists(pid) && pid != os.Getpid() {
@@ -143,7 +143,7 @@ func runServer(port int, dataDir string, secureCookies bool) {
 		os.Exit(1)
 	}
 
-	dbPath := filepath.Join(dataDir, "tun-console.db")
+	dbPath := filepath.Join(dataDir, "eazy-gateway.db")
 	d, err := db.Open(dbPath)
 	if err != nil {
 		logger.Error("open database", "error", err)
@@ -300,7 +300,7 @@ func runServer(port int, dataDir string, secureCookies bool) {
 		}
 	}()
 
-	logger.Info("tun-console starting", "addr", server.Addr)
+	logger.Info("eazy-gateway starting", "addr", server.Addr)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		if isAddrInUse(err) {
 			logger.Error("port already in use", "addr", server.Addr)
@@ -317,25 +317,25 @@ func runCommand(cmd string, args []string, dataDir string) {
 		cmdList(dataDir)
 	case "status":
 		if len(args) < 1 {
-			fmt.Println("Usage: tun-console status <id>")
+			fmt.Println("Usage: eazy-gateway status <id>")
 			os.Exit(1)
 		}
 		cmdStatus(args[0], dataDir)
 	case "start":
 		if len(args) < 1 {
-			fmt.Println("Usage: tun-console start <id>")
+			fmt.Println("Usage: eazy-gateway start <id>")
 			os.Exit(1)
 		}
 		cmdStart(args[0], dataDir)
 	case "stop":
 		if len(args) < 1 {
-			fmt.Println("Usage: tun-console stop <id>")
+			fmt.Println("Usage: eazy-gateway stop <id>")
 			os.Exit(1)
 		}
 		cmdStop(args[0], dataDir)
 	case "restart":
 		if len(args) < 1 {
-			fmt.Println("Usage: tun-console restart <id>")
+			fmt.Println("Usage: eazy-gateway restart <id>")
 			os.Exit(1)
 		}
 		cmdRestart(args[0], dataDir)
@@ -343,10 +343,10 @@ func runCommand(cmd string, args []string, dataDir string) {
 		cmdResetPassword(dataDir)
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
-		fmt.Println("Usage: tun-console [--install] [--port N] [--data dir] [command]")
+		fmt.Println("Usage: eazy-gateway [--install] [--port N] [--data dir] [command]")
 		fmt.Println("Flags:")
 		fmt.Println("  --install   Install as systemd service (requires sudo)")
-		fmt.Println("  --port      HTTP server port (default 3100)")
+		fmt.Println("  --port      HTTP server port (default 8022, env PORT)")
 		fmt.Println("  --data      Data directory")
 		fmt.Println("Commands: list, status, start, stop, restart, reset-password")
 		os.Exit(1)
@@ -679,9 +679,9 @@ func installSystemd(port int, dataDir string) error {
 		return fmt.Errorf("get home directory: %w", err)
 	}
 
-	installDir := filepath.Join(home, ".tun-console")
+	installDir := filepath.Join(home, ".eazy-gateway")
 	binDir := filepath.Join(installDir, "bin")
-	binPath := filepath.Join(binDir, "tun-console")
+	binPath := filepath.Join(binDir, "eazy-gateway")
 
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return fmt.Errorf("create data directory: %w", err)
@@ -710,7 +710,7 @@ func installSystemd(port int, dataDir string) error {
 	}
 
 	unit := fmt.Sprintf(`[Unit]
-Description=Tun-Console Tunnel Manager
+Description=Eazy-Gateway Tunnel Manager
 After=network-online.target
 Wants=network-online.target
 
@@ -729,7 +729,7 @@ WantedBy=default.target
 	if err := os.MkdirAll(unitDir, 0o755); err != nil {
 		return fmt.Errorf("create systemd user directory: %w", err)
 	}
-	unitPath := filepath.Join(unitDir, "tun-console.service")
+	unitPath := filepath.Join(unitDir, "eazy-gateway.service")
 	if err := os.WriteFile(unitPath, []byte(unit), 0o644); err != nil {
 		return fmt.Errorf("write unit file: %w", err)
 	}
@@ -737,10 +737,10 @@ WantedBy=default.target
 	if err := exec.Command("systemctl", "--user", "daemon-reload").Run(); err != nil {
 		return fmt.Errorf("systemctl --user daemon-reload: %w", err)
 	}
-	if err := exec.Command("systemctl", "--user", "enable", "tun-console.service").Run(); err != nil {
+	if err := exec.Command("systemctl", "--user", "enable", "eazy-gateway.service").Run(); err != nil {
 		return fmt.Errorf("systemctl --user enable: %w", err)
 	}
-	if err := exec.Command("systemctl", "--user", "start", "tun-console.service").Run(); err != nil {
+	if err := exec.Command("systemctl", "--user", "start", "eazy-gateway.service").Run(); err != nil {
 		return fmt.Errorf("systemctl --user start: %w", err)
 	}
 	return nil
@@ -756,6 +756,15 @@ func shellQuote(s string) string {
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
 	}
 	return fallback
 }
