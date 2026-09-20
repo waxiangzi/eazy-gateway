@@ -1,10 +1,13 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eazy-gateway/eazy-gateway/internal/version"
 )
 
 func modeOf(t *testing.T, path string) os.FileMode {
@@ -112,5 +115,55 @@ func TestOpenLogFileAppends(t *testing.T) {
 		if !strings.Contains(string(got), want) {
 			t.Errorf("log %q missing %q", got, want)
 		}
+	}
+}
+
+// captureStdout runs fn with os.Stdout redirected to a pipe and returns what it
+// wrote, so tests can assert on CLI output without spawning the binary.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	original := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = original }()
+
+	fn()
+
+	w.Close()
+	data, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read captured stdout: %v", err)
+	}
+	return string(data)
+}
+
+// `--version`/`version` is how a user tells which release they are running, and
+// both paths go through printVersion.
+func TestPrintVersionWritesBuildVersion(t *testing.T) {
+	original := version.Version
+	version.Version = "v9.9.9-test"
+	t.Cleanup(func() { version.Version = original })
+
+	var buf strings.Builder
+	printVersion(&buf)
+
+	if got, want := buf.String(), "v9.9.9-test\n"; got != want {
+		t.Errorf("printVersion() = %q, want %q", got, want)
+	}
+}
+
+func TestVersionSubcommandPrintsBuildVersion(t *testing.T) {
+	original := version.Version
+	version.Version = "v9.9.9-test"
+	t.Cleanup(func() { version.Version = original })
+
+	out := captureStdout(t, func() { runCommand("version", nil, t.TempDir()) })
+
+	if got, want := out, "v9.9.9-test\n"; got != want {
+		t.Errorf("runCommand(\"version\") = %q, want %q", got, want)
 	}
 }

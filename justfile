@@ -5,6 +5,9 @@
 binary_name := "eazy-gateway"
 build_dir   := "build"
 go_mod_dir  := "cmd/eazy-gateway"
+# 版本号：精确 tag > 最近 tag-距离 > 提交短哈希（无 git 时回退 dev）
+version     := `git describe --tags --always --dirty 2>/dev/null || echo dev`
+ldflags     := '-X github.com/eazy-gateway/eazy-gateway/internal/version.Version=' + version
 
 # --- 配方 ---
 
@@ -16,7 +19,7 @@ build-web:
 build: build-web
     rm -rf cmd/eazy-gateway/dist
     cp -r web/dist cmd/eazy-gateway/dist
-    go build -tags embed -o '{{build_dir}}/{{binary_name}}' ./cmd/eazy-gateway/
+    go build -tags embed -ldflags '{{ldflags}}' -o '{{build_dir}}/{{binary_name}}' ./cmd/eazy-gateway/
     rm -rf cmd/eazy-gateway/dist
 
 # 构建并运行

@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/eazy-gateway/eazy-gateway/internal/db"
+	"github.com/eazy-gateway/eazy-gateway/internal/version"
 )
 
 // SettingsHandler handles GET /api/settings (public) and PUT /api/settings (authenticated).
@@ -24,6 +25,7 @@ func SettingsHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"appName":           name,
 				"trafficTrendHours": hours,
+				"version":           version.Version,
 			})
 
 		case http.MethodPut:

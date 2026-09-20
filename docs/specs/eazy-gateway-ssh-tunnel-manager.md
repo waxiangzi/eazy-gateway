@@ -104,6 +104,7 @@
 57. As a 管理员, I want 自定义应用显示名称（appName）, so that 品牌名符合我的部署环境。
 58. As a 管理员, I want 配置流量趋势图的默认时长（1–24 小时）, so that 图表默认展示我关心的时间窗口。
 59. As a 管理员, I want 表单在提交前对输入做校验, so that 我能尽早得到错误反馈。
+60. As a 管理员, I want 在控制台与命令行看到当前构建版本, so that 报障或比对 release 时能确认自己跑的是哪个版本。
 
 ## Implementation Decisions
 
@@ -111,6 +112,7 @@
 - 项目、Go module、二进制、systemd 服务、cookie 名、DB 文件名等**统一命名为 `eazy-gateway`**（原 `tun-console`）。Go module 路径为 `github.com/eazy-gateway/eazy-gateway`。
 - 默认 HTTP 端口统一为 **8022**，可通过 `--port` flag 或 `PORT` 环境变量覆盖（flag 优先）。数据目录默认 `./data`，可通过 `--data` 或 `DATA_DIRECTORY` 覆盖。
 - 配置仅通过命令行 flag 与上述环境变量控制。`config.example.yaml` 仅作参考，**运行时不加载**。
+- 版本标识：release 构建用 git tag 经链接期注入（`-ldflags -X github.com/eazy-gateway/eazy-gateway/internal/version.Version=<tag>`）写入 `internal/version.Version`，**git tag 是版本的唯一来源**；未注入的构建（包括直接 `go build`）报告 `dev`。
 
 ### 架构
 - 后端 Go + `golang.org/x/crypto/ssh`；前端 Vue 3 + Pinia + Vue Router（hash 模式）+ Vue I18n。
@@ -139,7 +141,7 @@
 - 主机 key 验证策略：接受所有主机 key 并记录告警（不做严格 known_hosts 校验）。
 
 ### API 契约（关键点）
-- 公开：`GET /health`、`GET /api/settings`。
+- 公开：`GET /health`、`GET /api/settings`（含 `appName`、`trafficTrendHours`、`version`）。
 - 认证：`POST /api/login`、`POST /api/logout`、`GET /api/me`。
 - 受保护（cookie 或 Bearer）：hosts、tunnels、keys、settings（PUT）、admin/change-password 的全部 CRUD 与操作端点。
 - 删除存在引用关系的资源返回 **409**（主机被隧道引用、密钥被主机引用）。
@@ -148,7 +150,7 @@
 
 ### CLI 客户端
 - 二进制无参数时作为 HTTP 服务器运行；带子命令时作为 CLI 客户端，经数据目录下的本地 Unix socket（`cli.sock`）与运行中的服务通信。
-- 支持子命令：`list`、`start`、`stop`、`restart`、`status`、`reset-password`。
+- 支持子命令：`list`、`start`、`stop`、`restart`、`status`、`reset-password`、`version`（打印构建版本，不需服务在运行；`--version` flag 等价）。
 
 ### 部署
 - 多阶段 Dockerfile：node 构建前端 → golang 构建二进制 → distroless 运行时镜像，`EXPOSE 8022`。

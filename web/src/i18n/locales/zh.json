@@ -181,6 +181,7 @@
     "appNamePlaceholder": "例如：UnifiedEnv Easy Gateway",
     "trafficTrendHoursLabel": "流量趋势时长",
     "trafficTrendHoursUnit": "小时",
+    "versionLabel": "版本",
     "errors": {
       "required": "所有字段均为必填",
       "tooShort": "新密码至少需要 8 个字符",

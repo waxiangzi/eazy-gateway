@@ -4,6 +4,7 @@ import client from '../api/client.js'
 
 export const useSettingsStore = defineStore('settings', () => {
   const appName = ref('')
+  const version = ref('')
   const trafficTrendHours = ref(1)
   const loading = ref(false)
   const error = ref(null)
@@ -14,6 +15,7 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       const res = await client.get('/settings')
       appName.value = res.data?.appName || ''
+      version.value = res.data?.version || ''
       const h = parseInt(res.data?.trafficTrendHours, 10)
       trafficTrendHours.value = (!isNaN(h) && h > 0) ? h : 1
     } catch (err) {
@@ -58,6 +60,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   return {
     appName,
+    version,
     trafficTrendHours,
     loading,
     error,

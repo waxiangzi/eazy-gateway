@@ -9,7 +9,7 @@ A web-based SSH tunnel manager built with Go and Vue 3.
 - **Traffic Statistics** — real-time byte counters and per-tunnel traffic trend charts
 - **SSH Keys** — Ed25519 key pairs encrypted at rest with the admin password; auto-generates a default key on first run
 - **Admin Authentication** — session-based login with cookie or Bearer token support
-- **CLI Interface** — control tunnels from the terminal without opening the browser (`list`, `start`, `stop`, `restart`, `status`, `reset-password`)
+- **CLI Interface** — control tunnels from the terminal without opening the browser (`list`, `start`, `stop`, `restart`, `status`, `reset-password`, `version`)
 - **Auto-Restore** — automatically reconnects tunnels that were running before the last shutdown
 - **Graceful Shutdown** — cleans up SSH connections and saves traffic counters on SIGTERM/SIGINT
 - **Single Static Binary** — embeds the Vue SPA into the Go binary for easy distribution
@@ -57,6 +57,10 @@ just docker-build # build Docker image
 just clean        # remove build artifacts
 ```
 
+The version reported by `--version`, by the `version` subcommand, and in the console is the
+git tag of the build, injected at link time (`-X .../internal/version.Version`). Builds that
+carry no tag — including a plain `go build` — report `dev`.
+
 ## Run
 
 ### Quick Start
@@ -86,7 +90,9 @@ eazy-gateway status <tunnel-id>
 
 # Reset admin password (generates a new random password)
 eazy-gateway reset-password
-```
+
+# Print the build version (no server required)
+eazy-gateway version
 
 ### Flags
 
@@ -95,6 +101,7 @@ eazy-gateway reset-password
 | `--port` | `8022` (env `PORT`) | HTTP server port |
 | `--data` | `./data` (env `DATA_DIRECTORY`) | Persistent data directory (DB, keys, logs) |
 | `--serve` | `false` | Run in background (daemon mode) |
+| `--version` | | Print the build version and exit |
 | `--install` | `false` | Install as a user-level systemd service and start it |
 | `--secure-cookies` | `false` | Set `Secure` flag on session cookies (use when behind TLS proxy) |
 
@@ -122,8 +129,8 @@ sudo systemctl enable --now eazy-gateway
 ### Docker
 
 ```bash
-# Build
-docker build -t eazy-gateway .
+# Build (VERSION defaults to dev; pass the release tag to stamp the image)
+docker build --build-arg VERSION=v1.0.3 -t eazy-gateway .
 
 # Run
 docker run -d \
@@ -204,7 +211,7 @@ automatically and can be assigned to new hosts.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
-| GET | `/api/settings` | Read app settings (appName, trafficTrendHours) |
+| GET | `/api/settings` | Read app settings (appName, trafficTrendHours, version) |
 
 ### Auth
 

@@ -7,12 +7,16 @@ RUN npm install && npm run build
 # Stage 2: Build Go binary
 FROM golang:1.26-alpine AS go-builder
 WORKDIR /src
+# Stamped into the binary by -ldflags; pass the release tag to identify the image.
+ARG VERSION=dev
 COPY go.mod go.sum ./
 COPY internal/bbolt_shim/ ./internal/bbolt_shim/
 RUN go mod download
 COPY . .
 COPY --from=web-builder /web/dist/ ./cmd/eazy-gateway/dist/
-RUN CGO_ENABLED=0 go build -tags embed -o /eazy-gateway ./cmd/eazy-gateway/
+RUN CGO_ENABLED=0 go build -tags embed \
+    -ldflags "-X github.com/eazy-gateway/eazy-gateway/internal/version.Version=${VERSION}" \
+    -o /eazy-gateway ./cmd/eazy-gateway/
 
 # Stage 3: Minimal runtime image
 FROM gcr.io/distroless/static-debian12:nonroot

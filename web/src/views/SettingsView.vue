@@ -45,6 +45,13 @@
             <span v-else-if="trendHoursError" class="save-hint error">{{ trendHoursError }}</span>
           </div>
         </div>
+
+        <div class="inline-setting">
+          <label>{{ t('settings.versionLabel') }}</label>
+          <div class="inline-field">
+            <span class="version-value">{{ appVersion || '—' }}</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -134,6 +141,9 @@ const trendHoursError = ref('')
 const auth = useAuthStore()
 const settings = useSettingsStore()
 const router = useRouter()
+
+// Reported by GET /api/settings; shows which release this build is.
+const appVersion = computed(() => settings.version || '')
 
 onMounted(() => {
   appName.value = settings.appName || t('nav.brand')
@@ -367,6 +377,12 @@ async function handleTrendHoursChange() {
   background-position: right 0.75rem center;
   padding-right: 2rem;
   cursor: pointer;
+}
+
+.version-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1rem;
+  color: #cbd5e1;
 }
 
 .save-hint {

@@ -181,6 +181,7 @@
     "appNamePlaceholder": "e.g. UnifiedEnv Easy Gateway",
     "trafficTrendHoursLabel": "Traffic Trend Hours",
     "trafficTrendHoursUnit": "hours",
+    "versionLabel": "Version",
     "errors": {
       "required": "All fields are required",
       "tooShort": "New password must be at least 8 characters",

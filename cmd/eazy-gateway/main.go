@@ -26,15 +26,22 @@ import (
 	"github.com/eazy-gateway/eazy-gateway/internal/crypto"
 	"github.com/eazy-gateway/eazy-gateway/internal/db"
 	"github.com/eazy-gateway/eazy-gateway/internal/ssh"
+	"github.com/eazy-gateway/eazy-gateway/internal/version"
 )
 
 func main() {
 	serve := flag.Bool("serve", false, "Run in background")
 	install := flag.Bool("install", false, "Install as systemd service")
+	showVersion := flag.Bool("version", false, "Print version and exit")
 	port := flag.Int("port", getEnvInt("PORT", 8022), "HTTP server port")
 	dataDir := flag.String("data", getEnv("DATA_DIRECTORY", "./data"), "Data directory for persistent storage")
 	secureCookies := flag.Bool("secure-cookies", false, "Set Secure flag on session cookies (enable when behind TLS-terminating proxy)")
 	flag.Parse()
+
+	if *showVersion {
+		printVersion(os.Stdout)
+		os.Exit(0)
+	}
 
 	if *install {
 		installDataDir := *dataDir
@@ -391,6 +398,12 @@ func runServer(port int, dataDir string, secureCookies bool) {
 	}
 }
 
+// printVersion writes the build identity to w. Both `--version` and the
+// `version` subcommand use it, so they can never disagree.
+func printVersion(w io.Writer) {
+	fmt.Fprintln(w, version.Version)
+}
+
 func runCommand(cmd string, args []string, dataDir string) {
 	switch cmd {
 	case "list":
@@ -421,6 +434,8 @@ func runCommand(cmd string, args []string, dataDir string) {
 		cmdRestart(args[0], dataDir)
 	case "reset-password":
 		cmdResetPassword(dataDir)
+	case "version":
+		printVersion(os.Stdout)
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		fmt.Println("Usage: eazy-gateway [--install] [--port N] [--data dir] [command]")
@@ -428,7 +443,8 @@ func runCommand(cmd string, args []string, dataDir string) {
 		fmt.Println("  --install   Install as systemd service (requires sudo)")
 		fmt.Println("  --port      HTTP server port (default 8022, env PORT)")
 		fmt.Println("  --data      Data directory")
-		fmt.Println("Commands: list, status, start, stop, restart, reset-password")
+		fmt.Println("  --version   Print version and exit")
+		fmt.Println("Commands: list, status, start, stop, restart, reset-password, version")
 		os.Exit(1)
 	}
 }
