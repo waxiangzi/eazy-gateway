@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/eazy-gateway/eazy-gateway/internal/crypto"
@@ -62,6 +64,9 @@ func Credential() string {
 // ErrLocked, and an admin login unlocks the process.
 type KeyManager struct {
 	dataDir string
+	// genMu serializes default-key generation so two concurrent deletes of the
+	// last key cannot both create a keypair.
+	genMu sync.Mutex
 }
 
 // NewKeyManager creates a KeyManager rooted at the given data directory.
@@ -240,11 +245,69 @@ func (km *KeyManager) SaveKeyPEM(name string, plaintextPEM []byte, publicKey str
 	return &db.Key{Name: name, PublicKey: publicKey, PrivateKeyPath: path}, nil
 }
 
+// RemoveKeyFiles deletes a stored key pair from disk. It removes the private
+// key and the matching .pub file, treating an already-missing file as success so
+// the call is idempotent and safe to retry. Paths outside the key store are
+// refused so a corrupt database record cannot delete arbitrary files.
+func (km *KeyManager) RemoveKeyFiles(key *db.Key) error {
+	if key == nil || key.PrivateKeyPath == "" {
+		return nil
+	}
+	return km.removeKeyPair(key.PrivateKeyPath)
+}
+
+// removeKeyFilesByName deletes a key pair by its stored name (the basename of
+// the private key file), which is what EnsureDefaultKey knows before a key
+// record exists. The name is confined to the key store directory.
+func (km *KeyManager) removeKeyFilesByName(name string) error {
+	return km.removeKeyPair(filepath.Join(km.KeysDir(), filepath.Base(name)))
+}
+
+// removeKeyPair deletes path and path+".pub", refusing anything outside the key
+// store directory. Missing files are not an error.
+func (km *KeyManager) removeKeyPair(path string) error {
+	if !km.withinKeysDir(path) {
+		return fmt.Errorf("refusing to delete key file outside %q: %q", km.KeysDir(), path)
+	}
+	for _, p := range []string{path, path + ".pub"} {
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("remove key file %q: %w", p, err)
+		}
+	}
+	return nil
+}
+
+// withinKeysDir reports whether path resolves to an entry inside the key store
+// directory. Absolute paths are compared so a stored path recorded under a
+// different working directory (absolute vs relative --data) is still accepted.
+func (km *KeyManager) withinKeysDir(path string) bool {
+	dir, err := filepath.Abs(km.KeysDir())
+	if err != nil {
+		return false
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(dir, absPath)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != "."
+}
+
 // EnsureDefaultKey generates the default Ed25519 key pair when no key is stored
 // yet, writing it through SaveKeyPEM so the private key is encrypted at rest. A
 // fresh deployment has the generated admin password available and creates the
 // key immediately; a locked store defers generation until an admin logs in.
+//
+// The database having no keys means no host can reference one, so any file left
+// behind by an interrupted delete is an untracked orphan and is replaced rather
+// than treated as a fatal collision.
 func (km *KeyManager) EnsureDefaultKey(d *db.DB) error {
+	km.genMu.Lock()
+	defer km.genMu.Unlock()
+
 	keys, err := d.ListKeys()
 	if err != nil {
 		return err
@@ -255,6 +318,10 @@ func (km *KeyManager) EnsureDefaultKey(d *db.DB) error {
 	if Credential() == "" {
 		log.Printf("WARN: key store locked; default SSH key will be generated after the next login")
 		return nil
+	}
+
+	if err := km.removeKeyFilesByName("default"); err != nil {
+		return fmt.Errorf("clear orphaned default key: %w", err)
 	}
 
 	privPEM, pubKey, err := crypto.GenerateEd25519KeyPair()

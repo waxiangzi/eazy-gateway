@@ -69,7 +69,7 @@ func SettingsHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 					return
 				}
 			}
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

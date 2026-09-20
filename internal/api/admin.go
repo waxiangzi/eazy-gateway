@@ -138,7 +138,7 @@ func ResetPasswordHandler(d *db.DB, sessions *SessionStore, km *KeyManager) http
 			"password": password,
 		}
 		if !keysReencrypted && storedKeyCount(d) > 0 {
-			resp["warning"] = "SSH private keys could not be re-encrypted (key store was locked); re-add keys and update hosts before starting SSH tunnels"
+			resp["warning"] = "SSH private keys could not be re-encrypted (key store was locked). The stored keys are unusable: delete the hosts that reference them, then delete the keys, so a new default key can be generated."
 		}
 		writeJSON(w, http.StatusOK, resp)
 	}

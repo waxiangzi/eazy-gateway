@@ -197,7 +197,7 @@ func runServer(port int, dataDir string, secureCookies bool) {
 	stopPruning := sessions.StartPruning(5 * time.Minute)
 	defer stopPruning()
 
-	keysHandler := api.NewKeysHandler(d)
+	keysHandler := api.NewKeysHandler(d, km)
 	hostsHandler := api.NewHostsHandler(d, km)
 
 	engine := ssh.NewTunnelEngine()

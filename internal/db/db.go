@@ -9,10 +9,10 @@ import (
 
 // Bucket names
 var (
-	bucketTunnels  = []byte("tunnels_v2")
-	bucketHosts    = []byte("hosts")
-	bucketKeys     = []byte("keys")
-	bucketAdmin    = []byte("admin")
+	bucketTunnels        = []byte("tunnels_v2")
+	bucketHosts          = []byte("hosts")
+	bucketKeys           = []byte("keys")
+	bucketAdmin          = []byte("admin")
 	bucketTraffic        = []byte("traffic")
 	bucketTrafficSamples = []byte("traffic_samples")
 	bucketSettings       = []byte("settings")

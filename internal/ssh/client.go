@@ -34,7 +34,7 @@ type ProxyRule struct {
 // shared type later is mechanical. The engine stores a *Config per tunnel
 // so it can be reused verbatim during reconnects.
 type Config struct {
-	ID string
+	ID   string
 	Name string
 	Type string
 

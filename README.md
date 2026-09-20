@@ -7,7 +7,7 @@ A web-based SSH tunnel manager built with Go and Vue 3.
 - **SSH Host Management** — centrally manage SSH server configs (host, port, user, key) independently from tunnels
 - **Tunnel Types** — local port forwarding, remote port forwarding, dynamic SOCKS5 proxy, and HTTP-to-SOCKS5 proxy
 - **Traffic Statistics** — real-time byte counters and per-tunnel traffic trend charts
-- **SSH Keys** — Ed25519 key pairs stored on filesystem; auto-generates a default key on first run
+- **SSH Keys** — Ed25519 key pairs encrypted at rest with the admin password; auto-generates a default key on first run
 - **Admin Authentication** — session-based login with cookie or Bearer token support
 - **CLI Interface** — control tunnels from the terminal without opening the browser (`list`, `start`, `stop`, `restart`, `status`, `reset-password`)
 - **Auto-Restore** — automatically reconnects tunnels that were running before the last shutdown
@@ -33,8 +33,8 @@ A web-based SSH tunnel manager built with Go and Vue 3.
 ```
 
 **Data Model** — `Host` (SSH server config) and `Tunnel` (forwarding rule) are managed
-separately. A tunnel references a host by ID. Keys are stored as files on disk and
-referenced by path in the database.
+separately. A tunnel references a host by ID. Private keys are stored as files
+encrypted at rest and referenced by path in the database.
 
 **Tunnel Types**
 
@@ -180,8 +180,19 @@ from it into your deployment scripts or systemd unit as needed.
 
 First boot behavior:
 - Creates `data/eazy-gateway.db` (bbolt) for hosts, tunnels, settings, and admin hash.
-- Generates Ed25519 SSH key pair at `data/keys/default` if no keys exist.
+- Generates an Ed25519 SSH key pair if no keys exist: the private key is encrypted with
+  the admin password at `data/keys/default` (0600) and the public half at `data/keys/default.pub`.
 - Prints the auto-generated admin password to stdout and saves it to `data/initial-password.txt`.
+
+### Key store
+
+Private keys are sealed with a key derived from the admin password, so powering the
+service off means the key store starts **locked** and tunnels are restored only after
+an admin login. Changing the password re-encrypts every stored key in one pass; the
+CLI `reset-password` cannot do that while the store is locked, so it reports a warning
+and the stored keys become unusable. To recover, delete each host that references such
+a key (and its tunnels), then delete the key: a fresh default key is generated
+automatically and can be assigned to new hosts.
 
 ## API Endpoints
 
@@ -236,10 +247,11 @@ First boot behavior:
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/keys` | List SSH keys (id, name, publicKey) |
-| DELETE | `/api/keys/{id}` | Delete a key (409 if referenced by a host) |
+| DELETE | `/api/keys/{id}` | Delete a key and its files (409 if referenced by a host) |
 
-> Keys are auto-generated on first run. There is no HTTP upload endpoint; new keys can be
-> added by placing PEM files in the `data/keys/` directory and registering them in the DB.
+> Keys are auto-generated on first run and there is no HTTP upload endpoint. Deleting
+> the last key immediately generates a new default key so the console stays usable.
+> The private key files are encrypted with the admin password; see [Key store](#key-store).
 
 ### Settings
 
