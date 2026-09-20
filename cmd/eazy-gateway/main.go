@@ -80,7 +80,7 @@ func daemonize(port int, dataDir string) {
 	}
 
 	logFile := filepath.Join(dataDir, "eazy-gateway.log")
-	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := openLogFile(logFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "open log file: %v\n", err)
 		os.Exit(1)
@@ -112,6 +112,33 @@ func daemonize(port int, dataDir string) {
 
 	fmt.Printf("Service started, pid: %d\n", cmd.Process.Pid)
 	os.Exit(0)
+}
+
+// writeInitialPassword stores the generated admin password owner-only. It is the
+// only place the password is recorded now that the log no longer carries it, so a
+// failure here is fatal rather than ignored.
+func writeInitialPassword(path, password string) error {
+	if err := os.WriteFile(path, []byte(password+"\n"), 0o600); err != nil {
+		return err
+	}
+	// WriteFile leaves the mode of an existing file untouched.
+	return os.Chmod(path, 0o600)
+}
+
+// openLogFile opens the daemon log for appending. Everything the daemon writes
+// ends up here, so the file is owner only; a log created by an earlier version
+// (0644) is tightened on open rather than left readable.
+func openLogFile(path string) (*os.File, error) {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	// OpenFile does not change the mode of an existing file.
+	if err := f.Chmod(0o600); err != nil {
+		f.Close()
+		return nil, err
+	}
+	return f, nil
 }
 
 func processExists(pid int) bool {
@@ -162,15 +189,26 @@ func runServer(port int, dataDir string, secureCookies bool) {
 	// bcrypt hash before use. Otherwise the key store starts locked and an admin
 	// login unlocks it.
 	credential := ""
+	pwFile := filepath.Join(dataDir, "initial-password.txt")
 	if adminPassword != "" {
 		credential = adminPassword
-		logger.Info("admin password generated", "password", adminPassword)
-		pwFile := filepath.Join(dataDir, "initial-password.txt")
-		_ = os.WriteFile(pwFile, []byte(adminPassword+"\n"), 0o600)
-	} else if pw, err := os.ReadFile(filepath.Join(dataDir, "initial-password.txt")); err == nil {
+		// The password is also the key-store encryption password, so it must not
+		// reach the log: under --serve this logger writes to a plain file, and
+		// the log outlives the terminal it was printed to.
+		if err := writeInitialPassword(pwFile, adminPassword); err != nil {
+			logger.Error("write initial password file", "path", pwFile, "error", err)
+			os.Exit(1)
+		}
+		logger.Info("admin password generated", "path", pwFile)
+	} else if pw, err := os.ReadFile(pwFile); err == nil {
 		candidate := strings.TrimRight(string(pw), "\n")
 		if cfg, cfgErr := d.GetAdmin(); cfgErr == nil && cfg != nil && crypto.VerifyPassword(candidate, cfg.PasswordHash) {
 			credential = candidate
+			// A deployment upgraded from an older version may have left this file
+			// world readable; it holds the password in clear text.
+			if chmodErr := os.Chmod(pwFile, 0o600); chmodErr != nil {
+				logger.Warn("chmod initial password file", "path", pwFile, "error", chmodErr)
+			}
 		} else {
 			logger.Info("initial-password.txt does not match the admin hash; key store starts locked")
 		}

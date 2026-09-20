@@ -179,10 +179,12 @@ A `config.example.yaml` exists for reference but is **not loaded at runtime** â€
 from it into your deployment scripts or systemd unit as needed.
 
 First boot behavior:
-- Creates `data/eazy-gateway.db` (bbolt) for hosts, tunnels, settings, and admin hash.
+- Creates `data/eazy-gateway.db` (0600) for hosts, tunnels, settings, and admin hash.
 - Generates an Ed25519 SSH key pair if no keys exist: the private key is encrypted with
   the admin password at `data/keys/default` (0600) and the public half at `data/keys/default.pub`.
-- Prints the auto-generated admin password to stdout and saves it to `data/initial-password.txt`.
+- Generates an admin password and saves it to `data/initial-password.txt` (0600). It is
+  never written to the log, so read it from that file â€” under `--serve` the log is a
+  plain file and the password doubles as the key-store encryption password.
 
 ### Key store
 

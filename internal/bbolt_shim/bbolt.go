@@ -17,6 +17,7 @@ import (
 // DB represents a database. It wraps a JSON file storing bucket data.
 type DB struct {
 	path    string
+	mode    os.FileMode
 	mu      sync.RWMutex
 	buckets map[string]map[string][]byte
 	closed  bool
@@ -47,8 +48,15 @@ func Open(path string, mode os.FileMode, options *Options) (*DB, error) {
 		return nil, fmt.Errorf("bbolt_shim: create dir: %w", err)
 	}
 
+	// A zero mode would create an unreadable 0000 file; owner only is the safe
+	// default for data this shim keeps in plain text.
+	if mode == 0 {
+		mode = 0o600
+	}
+
 	db := &DB{
 		path:    path,
+		mode:    mode,
 		buckets: make(map[string]map[string][]byte),
 	}
 
@@ -57,6 +65,14 @@ func Open(path string, mode os.FileMode, options *Options) (*DB, error) {
 	if err == nil {
 		if err := json.Unmarshal(data, &db.buckets); err != nil {
 			return nil, fmt.Errorf("bbolt_shim: unmarshal db: %w", err)
+		}
+		// Every bucket is stored as readable JSON, so the file holds the admin
+		// password hash, hosts and tunnels in the clear. Earlier versions of
+		// this shim ignored the requested mode and left the file world
+		// readable; tighten an existing file now that the caller told us what
+		// it wants.
+		if err := os.Chmod(path, mode); err != nil {
+			return nil, fmt.Errorf("bbolt_shim: chmod db: %w", err)
 		}
 	} else if !os.IsNotExist(err) {
 		return nil, fmt.Errorf("bbolt_shim: read db: %w", err)
@@ -83,10 +99,24 @@ func (db *DB) flush() error {
 	if err != nil {
 		return fmt.Errorf("bbolt_shim: marshal: %w", err)
 	}
-	// Write atomically via temp file + rename to avoid corruption
+	// Write atomically via temp file + rename to avoid corruption. The mode is
+	// the one the caller passed to Open: os.WriteFile would keep the mode of a
+	// stale temp file, and umask can only remove bits, never add them.
 	tmpPath := db.path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+	tmp, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, db.mode)
+	if err != nil {
+		return fmt.Errorf("bbolt_shim: create tmp: %w", err)
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
 		return fmt.Errorf("bbolt_shim: write tmp: %w", err)
+	}
+	if err := tmp.Chmod(db.mode); err != nil {
+		tmp.Close()
+		return fmt.Errorf("bbolt_shim: chmod tmp: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("bbolt_shim: close tmp: %w", err)
 	}
 	if err := os.Rename(tmpPath, db.path); err != nil {
 		return fmt.Errorf("bbolt_shim: rename: %w", err)
