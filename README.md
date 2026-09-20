@@ -57,8 +57,6 @@ just docker-build # build Docker image
 just clean        # remove build artifacts
 ```
 
-> **Note:** The project migrated from `make` to `just`. `just` accepts the same invocation style (`just build`).
-
 ## Run
 
 ### Quick Start
