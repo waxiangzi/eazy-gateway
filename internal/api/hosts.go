@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 	"unicode"
@@ -41,12 +40,13 @@ func hasControlChar(s string) bool {
 
 // HostsHandler handles SSH host management endpoints.
 type HostsHandler struct {
-	db *db.DB
+	db   *db.DB
+	keys *KeyManager
 }
 
-// NewHostsHandler creates a HostsHandler with the given database.
-func NewHostsHandler(d *db.DB) *HostsHandler {
-	return &HostsHandler{db: d}
+// NewHostsHandler creates a HostsHandler with the given database and key manager.
+func NewHostsHandler(d *db.DB, keys *KeyManager) *HostsHandler {
+	return &HostsHandler{db: d, keys: keys}
 }
 
 // hostRequest is the JSON body accepted by Create and Update.
@@ -234,10 +234,11 @@ func (h *HostsHandler) Test(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keyPEM, err := os.ReadFile(key.PrivateKeyPath)
+	keyPEM, err := h.keys.LoadKeyPEM(key)
 	if err != nil {
-		log.Printf("ERROR: read private key %q: %v", key.PrivateKeyPath, err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read key file"})
+		status, msg := keyErrorStatus(err)
+		log.Printf("ERROR: load private key for host test: %v", err)
+		writeJSON(w, status, map[string]string{"error": msg})
 		return
 	}
 

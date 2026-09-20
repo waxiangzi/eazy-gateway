@@ -26,6 +26,7 @@ data/
 *.tmp
 *.bak
 tmp/
+.tmp-gocache/
 
 # OpenCode session metadata
 .omo/run-continuation/

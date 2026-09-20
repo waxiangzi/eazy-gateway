@@ -156,14 +156,38 @@ func runServer(port int, dataDir string, secureCookies bool) {
 		os.Exit(1)
 	}
 
+	// Resolve the password this process may use to decrypt stored private keys.
+	// A fresh deployment just generated one; an existing deployment may still
+	// have the initial generated password on file, which is verified against the
+	// bcrypt hash before use. Otherwise the key store starts locked and an admin
+	// login unlocks it.
+	credential := ""
 	if adminPassword != "" {
+		credential = adminPassword
 		logger.Info("admin password generated", "password", adminPassword)
 		pwFile := filepath.Join(dataDir, "initial-password.txt")
 		_ = os.WriteFile(pwFile, []byte(adminPassword+"\n"), 0o600)
+	} else if pw, err := os.ReadFile(filepath.Join(dataDir, "initial-password.txt")); err == nil {
+		candidate := strings.TrimRight(string(pw), "\n")
+		if cfg, cfgErr := d.GetAdmin(); cfgErr == nil && cfg != nil && crypto.VerifyPassword(candidate, cfg.PasswordHash) {
+			credential = candidate
+		} else {
+			logger.Info("initial-password.txt does not match the admin hash; key store starts locked")
+		}
 	}
 
-	if err := EnsureDefaultKey(d, dataDir); err != nil {
+	km := api.NewKeyManager(dataDir)
+	api.SetCredential(credential)
+
+	if err := km.EnsureDefaultKey(d); err != nil {
 		logger.Error("ensure default key", "error", err)
+		os.Exit(1)
+	}
+
+	// Upgrade any legacy plaintext private-key file to the encrypted format
+	// when the store is unlocked.
+	if err := km.UpgradeLegacyFiles(d); err != nil {
+		logger.Error("upgrade legacy key files", "error", err)
 		os.Exit(1)
 	}
 
@@ -173,11 +197,11 @@ func runServer(port int, dataDir string, secureCookies bool) {
 	stopPruning := sessions.StartPruning(5 * time.Minute)
 	defer stopPruning()
 
-	keysHandler := api.NewKeysHandler(d, adminPassword)
-	hostsHandler := api.NewHostsHandler(d)
+	keysHandler := api.NewKeysHandler(d)
+	hostsHandler := api.NewHostsHandler(d, km)
 
 	engine := ssh.NewTunnelEngine()
-	tunnelsHandler := api.NewTunnelHandler(d, engine)
+	tunnelsHandler := api.NewTunnelHandler(d, engine, km)
 
 	// Restore tunnels that were enabled before last shutdown
 	go tunnelsHandler.RestoreEnabled()
@@ -186,10 +210,28 @@ func runServer(port int, dataDir string, secureCookies bool) {
 	go runTrafficSampler(d, engine, logger)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/login", api.LoginHandler(d, sessions))
+	var unlockOnce sync.Once
+	mux.HandleFunc("/api/login", api.LoginHandler(d, sessions, func() {
+		// Migrate any legacy plaintext key files under the password that just
+		// unlocked the store, then bring the enabled tunnels online. Startup
+		// already did both when it had a usable password, so this only does work
+		// on the login that follows a locked start.
+		unlockOnce.Do(func() {
+			if err := km.UpgradeLegacyFiles(d); err != nil {
+				logger.Error("upgrade legacy key files after login", "error", err)
+			}
+			if err := km.EnsureDefaultKey(d); err != nil {
+				logger.Error("generate deferred default key after login", "error", err)
+			}
+			go tunnelsHandler.RestoreEnabled()
+		})
+	}))
 	mux.HandleFunc("/api/logout", api.LogoutHandler(sessions))
 	mux.HandleFunc("/api/me", api.MeHandler(sessions))
-	mux.HandleFunc("/api/admin/change-password", api.ChangePasswordHandler(d, sessions))
+	mux.HandleFunc("/api/admin/change-password", api.ChangePasswordHandler(d, sessions, km, func() {
+		// The original generated password is no longer valid.
+		_ = os.Remove(filepath.Join(dataDir, "initial-password.txt"))
+	}))
 	mux.HandleFunc("/api/settings", api.SettingsHandler(d, sessions))
 	mux.HandleFunc("GET /api/keys", keysHandler.HandleList)
 	mux.HandleFunc("DELETE /api/keys/{id}", keysHandler.HandleDelete)
@@ -246,7 +288,7 @@ func runServer(port int, dataDir string, secureCookies bool) {
 	cliMux.HandleFunc("GET /api/tunnels/{id}/status", tunnelsHandler.Status)
 	cliMux.HandleFunc("POST /api/tunnels/{id}/start", tunnelsHandler.Start)
 	cliMux.HandleFunc("POST /api/tunnels/{id}/stop", tunnelsHandler.Stop)
-		cliMux.HandleFunc("POST /api/admin/reset-password", api.ResetPasswordHandler(d, sessions))
+	cliMux.HandleFunc("POST /api/admin/reset-password", api.ResetPasswordHandler(d, sessions, km))
 	// Also expose hosts API on CLI socket for potential future CLI commands
 	cliMux.HandleFunc("GET /api/hosts", hostsHandler.List)
 	cliMux.HandleFunc("GET /api/hosts/{id}", hostsHandler.Get)
@@ -574,6 +616,7 @@ func cmdResetPassword(dataDir string) {
 
 	var result struct {
 		Password string `json:"password"`
+		Warning  string `json:"warning"`
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
 		fmt.Fprintf(os.Stderr, "parse response: %v\n", err)
@@ -585,52 +628,11 @@ func cmdResetPassword(dataDir string) {
 	fmt.Println("========================================")
 	fmt.Printf("New password: %s\n", result.Password)
 	fmt.Println("========================================")
+	if result.Warning != "" {
+		fmt.Printf("WARNING: %s\n", result.Warning)
+	}
 	fmt.Println("All existing sessions have been invalidated.")
 	fmt.Println("Please log in with the new password.")
-}
-
-func EnsureDefaultKey(d *db.DB, dataDir string) error {
-	keys, err := d.ListKeys()
-	if err != nil {
-		return err
-	}
-	if len(keys) > 0 {
-		return nil // already have keys
-	}
-
-	privPEM, pubKey, err := crypto.GenerateEd25519KeyPair()
-	if err != nil {
-		return fmt.Errorf("generate default key: %w", err)
-	}
-
-	keysDir := filepath.Join(dataDir, "keys")
-	if err := os.MkdirAll(keysDir, 0700); err != nil {
-		return fmt.Errorf("create keys directory: %w", err)
-	}
-
-	privPath := filepath.Join(keysDir, "default")
-	pubPath := privPath + ".pub"
-
-	if err := os.WriteFile(privPath, []byte(privPEM), 0600); err != nil {
-		return fmt.Errorf("write private key: %w", err)
-	}
-	if err := os.WriteFile(pubPath, []byte(pubKey), 0644); err != nil {
-		return fmt.Errorf("write public key: %w", err)
-	}
-
-	key := &db.Key{
-		Name:           "default",
-		PublicKey:      pubKey,
-		PrivateKeyPath: privPath,
-	}
-
-	if _, err := d.CreateKey(key); err != nil {
-		return fmt.Errorf("save default key: %w", err)
-	}
-
-	fmt.Printf("SSH keys initialized at %s/\n", keysDir)
-
-	return nil
 }
 
 func isAddrInUse(err error) bool {

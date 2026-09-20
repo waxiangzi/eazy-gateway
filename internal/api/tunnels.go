@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -20,11 +19,12 @@ import (
 type TunnelHandler struct {
 	db     *db.DB
 	engine *ssh.TunnelEngine
+	keys   *KeyManager
 }
 
 // NewTunnelHandler creates a TunnelHandler with the given dependencies.
-func NewTunnelHandler(d *db.DB, engine *ssh.TunnelEngine) *TunnelHandler {
-	return &TunnelHandler{db: d, engine: engine}
+func NewTunnelHandler(d *db.DB, engine *ssh.TunnelEngine, keys *KeyManager) *TunnelHandler {
+	return &TunnelHandler{db: d, engine: engine, keys: keys}
 }
 
 type proxyRuleRequest struct {
@@ -335,7 +335,7 @@ func (h *TunnelHandler) RestoreEnabled() {
 		if !tc.Enabled {
 			continue
 		}
-			s := h.engine.Status(tc.ID)
+		s := h.engine.Status(tc.ID)
 		if s == ssh.StatusConnected || s == ssh.StatusConnecting {
 			log.Printf("INFO: tunnel %q (%s) already %s, skipping restore", tc.ID, tc.Name, s)
 			continue
@@ -354,9 +354,9 @@ func (h *TunnelHandler) RestoreEnabled() {
 				log.Printf("WARN: tunnel %q enabled but key for host %q not found: %v", tc.ID, host.ID, err)
 				continue
 			}
-			keyPEM, err = os.ReadFile(key.PrivateKeyPath)
+			keyPEM, err = h.keys.LoadKeyPEM(key)
 			if err != nil {
-				log.Printf("WARN: tunnel %q enabled but key file unreadable: %v", tc.ID, err)
+				log.Printf("WARN: tunnel %q enabled but key unavailable on restore: %v", tc.ID, err)
 				continue
 			}
 		}
@@ -429,7 +429,7 @@ func (h *TunnelHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	tc := toDBTunnel(id, &req)
 	tc.CreatedAt = existing.CreatedAt // preserve original creation time
-	tc.Enabled = existing.Enabled       // preserve enabled state
+	tc.Enabled = existing.Enabled     // preserve enabled state
 
 	if err := h.db.UpdateTunnel(tc); err != nil {
 		log.Printf("ERROR: update tunnel %q: %v", id, err)
@@ -544,10 +544,11 @@ func (h *TunnelHandler) Start(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		keyPEM, err = os.ReadFile(key.PrivateKeyPath)
+		keyPEM, err = h.keys.LoadKeyPEM(key)
 		if err != nil {
-			log.Printf("ERROR: read private key file %q for tunnel %q: %v", key.PrivateKeyPath, id, err)
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read key"})
+			status, msg := keyErrorStatus(err)
+			log.Printf("ERROR: load private key for tunnel %q: %v", id, err)
+			writeJSON(w, status, map[string]string{"error": msg})
 			return
 		}
 	}

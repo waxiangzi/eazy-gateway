@@ -9,11 +9,11 @@ import (
 	"github.com/eazy-gateway/eazy-gateway/internal/db"
 )
 
-// ChangePasswordHandler handles POST /api/admin/change-password.
-// It verifies the old password, updates the admin password hash, and
-// invalidates all sessions. SSH private keys live on the filesystem and are
-// not affected by a password change.
-func ChangePasswordHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
+// ChangePasswordHandler handles POST /api/admin/change-password. It verifies
+// the old password, re-encrypts every SSH private key under the new password
+// (direct re-encryption architecture), persists the new admin hash, and
+// invalidates all sessions.
+func ChangePasswordHandler(d *db.DB, sessions *SessionStore, km *KeyManager, onSuccess func()) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -59,6 +59,14 @@ func ChangePasswordHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 			return
 		}
 
+		// Re-encrypt all private keys first: decryption still uses the old
+		// password because the admin record has not been updated yet.
+		if err := km.ReencryptAll(d, body.OldPassword, body.NewPassword); err != nil {
+			log.Printf("ERROR: re-encrypt private keys after password change; password NOT changed: %v", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to re-encrypt private keys; password not changed"})
+			return
+		}
+
 		newHash, err := crypto.HashPassword(body.NewPassword)
 		if err != nil {
 			log.Printf("ERROR: hash password: %v", err)
@@ -73,34 +81,74 @@ func ChangePasswordHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 			return
 		}
 
+		// Keep the runtime credential in sync so subsequent key reads use
+		// the new password without a fresh login.
+		SetCredential(body.NewPassword)
+
 		// Invalidate all existing sessions
 		sessions.ClearAll()
+
+		if onSuccess != nil {
+			onSuccess()
+		}
 
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
 // ResetPasswordHandler handles POST /api/admin/reset-password.
-// Generates a new random admin password, hashes it, and stores it.
-// Returns the plaintext password in the response.
-func ResetPasswordHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
+// Generates a new random admin password, re-encrypts every SSH private key
+// under it, hashes it, and stores it. Returns the plaintext password in the
+// response. It must only be exposed on the local CLI unix socket.
+func ResetPasswordHandler(d *db.DB, sessions *SessionStore, km *KeyManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
+		// When the key store is locked (service restarted after a password
+		// change, or the password was forgotten) the old password is unknown and
+		// stored keys cannot be re-encrypted. Reset the admin password anyway so
+		// the console stays reachable, and report that keys must be re-added.
+		oldPassword := Credential()
 		password, err := ResetAdminPassword(d)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 			return
 		}
 
+		keysReencrypted := false
+		if oldPassword != "" {
+			if err := km.ReencryptAll(d, oldPassword, password); err != nil {
+				log.Printf("WARN: re-encrypt private keys failed after admin password reset: %v", err)
+			} else {
+				keysReencrypted = true
+			}
+		} else {
+			log.Printf("WARN: admin password reset while key store was locked; SSH private keys were not re-encrypted")
+		}
+
+		SetCredential(password)
+
 		sessions.ClearAll()
 
-		writeJSON(w, http.StatusOK, map[string]string{
+		resp := map[string]interface{}{
 			"status":   "ok",
 			"password": password,
-		})
+		}
+		if !keysReencrypted && storedKeyCount(d) > 0 {
+			resp["warning"] = "SSH private keys could not be re-encrypted (key store was locked); re-add keys and update hosts before starting SSH tunnels"
+		}
+		writeJSON(w, http.StatusOK, resp)
 	}
+}
+
+// storedKeyCount reports how many keys are stored, or 0 when the listing fails.
+func storedKeyCount(d *db.DB) int {
+	keys, err := d.ListKeys()
+	if err != nil {
+		return 0
+	}
+	return len(keys)
 }

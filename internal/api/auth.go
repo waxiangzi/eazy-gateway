@@ -44,9 +44,9 @@ type SessionStore struct {
 }
 
 type loginAttempt struct {
-	count   int
+	count    int
 	lastFail time.Time
-	blocked bool
+	blocked  bool
 }
 
 // NewSessionStore creates an empty session store.
@@ -58,9 +58,9 @@ func NewSessionStore() *SessionStore {
 }
 
 const (
-	maxLoginAttempts    = 5
-	loginBlockDuration  = 5 * time.Minute
-	loginAttemptWindow  = 5 * time.Minute
+	maxLoginAttempts   = 5
+	loginBlockDuration = 5 * time.Minute
+	loginAttemptWindow = 5 * time.Minute
 )
 
 func (s *SessionStore) checkLoginRateLimit(ip string) bool {
@@ -277,8 +277,11 @@ func ResetAdminPassword(d *db.DB) (string, error) {
 	return password, nil
 }
 
-// LoginHandler handles POST /api/login.
-func LoginHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
+// LoginHandler handles POST /api/login. A verified password becomes the
+// credential the process uses to decrypt private-key files, which unlocks the
+// key store for the lifetime of this process. onUnlock then takes over the
+// work that only makes sense once the store is readable.
+func LoginHandler(d *db.DB, sessions *SessionStore, onUnlock func()) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -332,6 +335,12 @@ func LoginHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 
 		sessions.clearLoginAttempts(clientIP)
 
+		// Unlock the key store now that the correct password is proven.
+		SetCredential(body.Password)
+		if onUnlock != nil {
+			onUnlock()
+		}
+
 		token, err := sessions.Create()
 		if err != nil {
 			log.Printf("ERROR: create session: %v", err)
@@ -349,11 +358,15 @@ func LoginHandler(d *db.DB, sessions *SessionStore) http.HandlerFunc {
 			MaxAge:   int(sessionMaxAge.Seconds()),
 		})
 
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		// Return the raw token so API consumers can authenticate subsequent
+		// requests with an "Authorization: Bearer <token>" header.
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "token": token})
 	}
 }
 
-// LogoutHandler handles POST /api/logout.
+// LogoutHandler handles POST /api/logout. It drops whichever session the client
+// presented, from either the cookie or an "Authorization: Bearer" header, then
+// clears the cookie.
 func LogoutHandler(sessions *SessionStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -364,6 +377,9 @@ func LogoutHandler(sessions *SessionStore) http.HandlerFunc {
 		cookie, err := r.Cookie(cookieName)
 		if err == nil && cookie.Value != "" {
 			sessions.Delete(cookie.Value)
+		}
+		if token := extractBearerToken(r); token != "" {
+			sessions.Delete(token)
 		}
 
 		http.SetCookie(w, &http.Cookie{
@@ -380,7 +396,8 @@ func LogoutHandler(sessions *SessionStore) http.HandlerFunc {
 	}
 }
 
-// MeHandler handles GET /api/me.
+// MeHandler handles GET /api/me. It accepts either the session cookie or a
+// Bearer token so API consumers can verify their credentials.
 func MeHandler(sessions *SessionStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -390,6 +407,11 @@ func MeHandler(sessions *SessionStore) http.HandlerFunc {
 
 		cookie, err := r.Cookie(cookieName)
 		if err == nil && cookie.Value != "" && sessions.Get(cookie.Value) {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+			return
+		}
+
+		if bt := extractBearerToken(r); bt != "" && sessions.Get(bt) {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 			return
 		}
@@ -408,9 +430,11 @@ func NewAuthMiddleware(sessions *SessionStore) *AuthMiddleware {
 	return &AuthMiddleware{sessions: sessions}
 }
 
-// Wrap returns an http.Handler that checks the session cookie before passing
-// requests to the next handler. Requests to /api/login and /api/admin/reset-password
-// are allowed through without authentication.
+// Wrap returns an http.Handler that checks the session cookie or Bearer token
+// before passing requests to the next handler. Requests to /api/login and the
+// public GET /api/settings endpoint are allowed through without authentication.
+// API consumers may authenticate with an "Authorization: Bearer <token>" header
+// instead of the session cookie; the token is issued by POST /api/login.
 func (m *AuthMiddleware) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Allow login and settings read endpoint without session
@@ -421,6 +445,11 @@ func (m *AuthMiddleware) Wrap(next http.Handler) http.Handler {
 
 		cookie, err := r.Cookie(cookieName)
 		if err == nil && cookie.Value != "" && m.sessions.Get(cookie.Value) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if bt := extractBearerToken(r); bt != "" && m.sessions.Get(bt) {
 			next.ServeHTTP(w, r)
 			return
 		}

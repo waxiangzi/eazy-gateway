@@ -10,16 +10,12 @@ import (
 
 // KeysHandler handles SSH key management endpoints.
 type KeysHandler struct {
-	db            *db.DB
-	adminPassword string
+	db *db.DB
 }
 
-// NewKeysHandler creates a KeysHandler with the given database and admin password for encryption.
-func NewKeysHandler(d *db.DB, adminPassword string) *KeysHandler {
-	return &KeysHandler{
-		db:            d,
-		adminPassword: adminPassword,
-	}
+// NewKeysHandler creates a KeysHandler with the given database.
+func NewKeysHandler(d *db.DB) *KeysHandler {
+	return &KeysHandler{db: d}
 }
 
 // HandleList handles GET /api/keys
