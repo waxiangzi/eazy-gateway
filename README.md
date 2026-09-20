@@ -188,7 +188,10 @@ First boot behavior:
 
 Private keys are sealed with a key derived from the admin password, so powering the
 service off means the key store starts **locked** and tunnels are restored only after
-an admin login. Changing the password re-encrypts every stored key in one pass; the
+an admin login. Only files inside the key store are ever written, so a key record that
+points elsewhere (a hand-added path under `~/.ssh`, say) is read as-is and left
+untouched by password changes and legacy migration.
+Changing the password re-encrypts every stored key in one pass; the
 CLI `reset-password` cannot do that while the store is locked, so it reports a warning
 and the stored keys become unusable. To recover, delete each host that references such
 a key (and its tunnels), then delete the key: a fresh default key is generated

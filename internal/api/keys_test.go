@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -186,6 +187,95 @@ func TestEnsureDefaultKeyReplacesOrphanedFile(t *testing.T) {
 	}
 	if !strings.HasPrefix(string(pem), pemHeader) {
 		t.Fatalf("default key was not replaced with an encrypted PEM: %q", pem[:min(len(pem), 32)])
+	}
+}
+
+// registerStoredKey inserts a key record whose private key file lives at path,
+// simulating a legacy import that points outside the app's key store.
+func registerStoredKey(t *testing.T, d *db.DB, name, path string) *db.Key {
+	t.Helper()
+
+	key := &db.Key{Name: name, PublicKey: "ssh-ed25519 AAAA", PrivateKeyPath: path}
+	if _, err := d.CreateKey(key); err != nil {
+		t.Fatalf("store key %q: %v", name, err)
+	}
+	return key
+}
+
+// plaintextKey is a legacy PEM that readStoredKey classifies as unencrypted.
+var plaintextKey = []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nUSER-OWNED-KEY\n-----END OPENSSH PRIVATE KEY-----\n")
+
+// TestReencryptAllLeavesKeysOutsideTheStoreUntouched asserts a password change
+// never rewrites a file that is not ours. A database record pointing outside the
+// key store (e.g. an operator's ~/.ssh/id_ed25519) must survive rotation
+// verbatim instead of being replaced with our ciphertext.
+func TestReencryptAllLeavesKeysOutsideTheStoreUntouched(t *testing.T) {
+	d, km := newKeyTestEnv(t, "oldpassword1")
+
+	if err := km.EnsureDefaultKey(d); err != nil {
+		t.Fatalf("ensure default key: %v", err)
+	}
+	inStore := onlyKey(t, d)
+
+	outside := filepath.Join(t.TempDir(), "id_ed25519")
+	if err := os.WriteFile(outside, plaintextKey, 0o600); err != nil {
+		t.Fatalf("write external key: %v", err)
+	}
+	registerStoredKey(t, d, "system", outside)
+
+	if err := km.ReencryptAll(d, "oldpassword1", "newpassword2"); err != nil {
+		t.Fatalf("re-encrypt keys: %v", err)
+	}
+
+	if got, err := os.ReadFile(outside); err != nil || !bytes.Equal(got, plaintextKey) {
+		t.Fatalf("key outside the store was modified: got %q, err=%v", got, err)
+	}
+
+	// The in-store key must still be rotated to the new password.
+	SetCredential("newpassword2")
+	if _, err := km.LoadKeyPEM(inStore); err != nil {
+		t.Fatalf("in-store key not re-encrypted under the new password: %v", err)
+	}
+	SetCredential("oldpassword1")
+	if _, err := km.LoadKeyPEM(inStore); err == nil {
+		t.Fatal("in-store key still decrypts with the old password")
+	}
+}
+
+// TestUpgradeLegacyFilesLeavesKeysOutsideTheStoreUntouched asserts the unlock
+// migration encrypts legacy files inside the key store only, leaving files that
+// are not ours alone.
+func TestUpgradeLegacyFilesLeavesKeysOutsideTheStoreUntouched(t *testing.T) {
+	d, km := newKeyTestEnv(t, "somepassword1")
+
+	outside := filepath.Join(t.TempDir(), "id_rsa")
+	if err := os.WriteFile(outside, plaintextKey, 0o600); err != nil {
+		t.Fatalf("write external key: %v", err)
+	}
+	registerStoredKey(t, d, "system", outside)
+
+	inStorePath := filepath.Join(km.KeysDir(), "legacy")
+	if err := os.MkdirAll(km.KeysDir(), 0o700); err != nil {
+		t.Fatalf("create keys dir: %v", err)
+	}
+	if err := os.WriteFile(inStorePath, plaintextKey, 0o600); err != nil {
+		t.Fatalf("write in-store legacy key: %v", err)
+	}
+	registerStoredKey(t, d, "legacy", inStorePath)
+
+	if err := km.UpgradeLegacyFiles(d); err != nil {
+		t.Fatalf("upgrade legacy files: %v", err)
+	}
+
+	if got, err := os.ReadFile(outside); err != nil || !bytes.Equal(got, plaintextKey) {
+		t.Fatalf("key outside the store was modified: got %q, err=%v", got, err)
+	}
+	got, err := os.ReadFile(inStorePath)
+	if err != nil {
+		t.Fatalf("read in-store legacy key: %v", err)
+	}
+	if bytes.HasPrefix(bytes.TrimSpace(got), []byte(pemHeader)) {
+		t.Fatal("in-store legacy key was not encrypted by the migration")
 	}
 }
 

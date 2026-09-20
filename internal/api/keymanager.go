@@ -101,12 +101,33 @@ type keyRewrite struct {
 	perm os.FileMode
 }
 
+// foreignKeyFile reports whether path lies outside the key store, warning when it
+// does. Such a record is read as-is but never written: re-encrypting it during a
+// password change could clobber an operator's own key (for example ~/.ssh/id_ed25519).
+func (km *KeyManager) foreignKeyFile(path string) bool {
+	if km.withinKeysDir(path) {
+		return false
+	}
+	log.Printf("WARN: private key file %q is outside the key store %q; leaving it untouched", path, km.KeysDir())
+	return true
+}
+
 // writeKeyRewrites replaces every listed file with new contents, staging all of
 // them as temporary siblings first and renaming them into place only after the
 // whole set has been written and synced. A failure while staging removes the
 // temporary files and leaves every original untouched, so callers can treat a
 // rotated key store as either fully written or unchanged.
-func writeKeyRewrites(rewrites []keyRewrite) error {
+//
+// Every path must be inside the key store. Callers read PrivateKeyPath from the
+// database, so a stale or hand-edited record could otherwise make a password
+// change overwrite an operator's own key (for example ~/.ssh/id_ed25519).
+func (km *KeyManager) writeKeyRewrites(rewrites []keyRewrite) error {
+	for _, rw := range rewrites {
+		if !km.withinKeysDir(rw.path) {
+			return fmt.Errorf("refusing to write key file outside %q: %q", km.KeysDir(), rw.path)
+		}
+	}
+
 	staged := make([]string, 0, len(rewrites))
 	discard := func() {
 		for _, tmp := range staged {
@@ -146,12 +167,6 @@ func writeKeyRewrites(rewrites []keyRewrite) error {
 		staged[i] = "" // renamed into place; nothing left to discard
 	}
 	return nil
-}
-
-// writeFileAtomic writes data to path via a temporary sibling file and a
-// rename, so a crash or a full disk never exposes a truncated private key.
-func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
-	return writeKeyRewrites([]keyRewrite{{path: path, data: data, perm: perm}})
 }
 
 // readStoredKey returns the raw stored contents of a key file and whether it is
@@ -236,7 +251,7 @@ func (km *KeyManager) SaveKeyPEM(name string, plaintextPEM []byte, publicKey str
 	if err != nil {
 		return nil, fmt.Errorf("encrypt private key: %w", err)
 	}
-	if err := writeKeyRewrites([]keyRewrite{
+	if err := km.writeKeyRewrites([]keyRewrite{
 		{path: path, data: enc, perm: 0o600},
 		{path: path + ".pub", data: []byte(publicKey), perm: 0o644},
 	}); err != nil {
@@ -360,6 +375,9 @@ func (km *KeyManager) UpgradeLegacyFiles(d *db.DB) error {
 		if k.PrivateKeyPath == "" {
 			continue
 		}
+		if km.foreignKeyFile(k.PrivateKeyPath) {
+			continue
+		}
 		raw, encrypted, err := readStoredKey(k.PrivateKeyPath)
 		if err != nil {
 			log.Printf("WARN: read key file %q for migration: %v", k.PrivateKeyPath, err)
@@ -375,7 +393,7 @@ func (km *KeyManager) UpgradeLegacyFiles(d *db.DB) error {
 		}
 		rewrites = append(rewrites, keyRewrite{path: k.PrivateKeyPath, data: enc, perm: 0o600})
 	}
-	if err := writeKeyRewrites(rewrites); err != nil {
+	if err := km.writeKeyRewrites(rewrites); err != nil {
 		return fmt.Errorf("migrate legacy key files: %w", err)
 	}
 	return nil
@@ -401,6 +419,9 @@ func (km *KeyManager) ReencryptAll(d *db.DB, oldPassword, newPassword string) er
 		if path == "" {
 			continue
 		}
+		if km.foreignKeyFile(path) {
+			continue
+		}
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			log.Printf("WARN: private key file %q missing; skipping re-encryption", path)
 			continue
@@ -415,7 +436,7 @@ func (km *KeyManager) ReencryptAll(d *db.DB, oldPassword, newPassword string) er
 		}
 		rewrites = append(rewrites, keyRewrite{path: path, data: enc, perm: 0o600})
 	}
-	if err := writeKeyRewrites(rewrites); err != nil {
+	if err := km.writeKeyRewrites(rewrites); err != nil {
 		return fmt.Errorf("re-encrypt key files: %w", err)
 	}
 	return nil
