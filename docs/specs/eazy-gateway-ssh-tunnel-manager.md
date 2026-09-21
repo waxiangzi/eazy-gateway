@@ -132,6 +132,8 @@
 - 重连指数退避：初始 1s，倍增至 60s 封顶；仅在 context 被取消（Stop/Shutdown）时退出。
 - `httpToSocks5` 类型不建立 SSH 连接，直接以本地监听 + 转发到上游 SOCKS5 的方式运行。
 - 所有转发共用 `pipe` 双向中继，原子计数 bytesIn（remote→local）/ bytesOut（local→remote）。
+- 累计流量只通过 `db.AddTraffic`（单事务读改写）写入持久化层，`POST /api/tunnels/{id}/stop`、`DELETE /api/tunnels/{id}` 与进程退出（SIGTERM/SIGINT）三条路径共用它。
+- 退出路径先把在跑隧道的运行时计数折入持久化总量，再停止引擎——`TunnelEngine.Traffic` 在停止后归零，顺序不可颠倒。后台采样器（每分钟一次累计快照）在 drain 前先被取消并等待退出，避免同一批字节被同时计入样本与总量。
 
 ### 认证与会话
 - 单管理员，无用户名。密码 bcrypt 哈希存于 DB。
@@ -165,8 +167,8 @@
   - `--help` 输出 `--port` 默认为 8022；不设 flag 时监听 8022，`--port N` 与 `PORT=N` 均能覆盖。
   - 首次启动在数据目录生成 `eazy-gateway.db`（而非旧名）。
   - 受保护端点在无凭据时返回鉴权错误；携带正确 cookie/Bearer 时可访问。
-- **被测模块**：优先在二进制/HTTP 边界测试，覆盖 auth、hosts、tunnels、keys、settings 各 handler 的外部契约，以及隧道引擎的可观测状态转换（通过 status 端点）。
-- **既有测试（prior art）**：`internal/api/keys_test.go` 在 `httptest` 边界覆盖密钥生命周期（删除密钥、末尾密钥删除后自动重建默认密钥、并发删除、被主机引用时拒绝、重加密不动密钥库外的文件）；`cmd/eazy-gateway/main_test.go` 与 `internal/bbolt_shim/bbolt_test.go` 覆盖首次启动/首次落盘产生的文件权限与日志行为。CI 的 `test` job 执行 `gofmt -l`、`go vet` 与两个模块的 `go test -race`，并阻断 `build-go` 与 `release`。
+- **被测模块（已落地）**：`internal/api/keys_test.go` 与 `internal/api/settings_test.go` 在 `httptest` 边界覆盖 keys / settings 的外部契约；`internal/db/traffic_test.go` 覆盖累计计数的累加与首次创建；`cmd/eazy-gateway/traffic_test.go` 覆盖退出 drain 与采样器取消。**仍未覆盖**（属计划而非现状）：auth、hosts、tunnels 的 handler 外部契约，以及隧道引擎的可观测状态转换（通过 status 端点）。
+- **既有测试（prior art）**：`internal/api/keys_test.go`（密钥生命周期：删除、末尾密钥删除后自动重建默认密钥、并发删除、被主机引用时拒绝、重加密不动密钥库外的文件）与 `internal/api/settings_test.go`（version 上报、按请求读取、PUT 需会话）在 `httptest` 边界测试；`internal/db/traffic_test.go` 覆盖 `db.AddTraffic`；`cmd/eazy-gateway/traffic_test.go` 覆盖退出 drain 与采样器取消；`cmd/eazy-gateway/main_test.go`、`internal/version/version_test.go` 与 `internal/bbolt_shim/bbolt_test.go` 覆盖版本打印与首次落盘产生的文件权限/日志行为。CI 的 `test` job 执行 `gofmt -l`、`go vet` 与两个模块的 `go test -race`，并阻断 `build-go` 与 `release`。
 - **发布前验收**：对编译出的二进制做黑盒检查——curl 打 HTTP API 断言状态码与响应字段、shell 检查数据目录中的文件名与权限。这是最靠近真实部署的接缝，与上面的包级测试互为补充。
 
 ## Out of Scope
@@ -184,4 +186,5 @@
 - **计划与实现的偏离（实现即事实）**：原计划 Guardrails 曾把"独立 CLI 客户端"与"流量日志/带宽监控/分析"列为不做项，但当前代码**已实现** CLI 客户端与流量统计（累计计数 + 趋势图）。本 spec 以实现为准，将二者纳入范围。
 - 原计划的隧道类型为三种（-L/-R/-D），实现中扩展出**第四种** `httpToSocks5`（含域名代理规则），此前的 README 未记录，现已在文档中补齐。
 - 加密细节较计划更具体：AES-GCM + PBKDF2-SHA256（10 万次迭代），而非泛称的 "password-derived key"。
+- 优雅关闭的流量持久化曾缺失（关闭只清理连接、不回写运行时计数，所以重启后累计值会回退）。已在 issue #2 中补齐：退出时先把在跑隧道的运行时计数折入持久化总量，再停止引擎；非原子的 `UpdateTraffic` 随之删除，`db.AddTraffic` 成为累计计数的唯一写入入口。
 - 本 spec 属回溯性文档，用于沉淀已完成项目的需求与决策；仓库根目录暂无 `CONTEXT.md` 或 `docs/adr/`，如后续需要可按 domain-modeling 流程补充。
