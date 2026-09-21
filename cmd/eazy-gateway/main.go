@@ -360,6 +360,13 @@ func runServer(port int, dataDir string, secureCookies bool) {
 
 			_ = os.Remove(socketPath)
 
+			// The engine holds runtime byte counters in memory only, and Stop
+			// resets them, so fold them into the persisted totals before the
+			// tunnels go away.
+			if err := drainTraffic(d, engine); err != nil {
+				logger.Error("persist traffic counters", "error", err)
+			}
+
 			engine.Shutdown()
 			if err := d.Close(); err != nil {
 				logger.Error("database close error", "error", err)
@@ -823,6 +830,55 @@ func getEnvInt(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+// trafficSource reports the live byte counters of a running tunnel. The SSH
+// tunnel engine implements it; tests substitute a stub, because real counters
+// only exist while a forwarding connection is up.
+type trafficSource interface {
+	Traffic(tunnelID string) (uint64, uint64)
+}
+
+var _ trafficSource = (*ssh.TunnelEngine)(nil)
+
+// drainTraffic folds the runtime byte counters of every running tunnel into its
+// persisted totals, so a graceful shutdown does not lose the bytes moved since
+// the last snapshot. It must run before the engine stops: TunnelEngine.Traffic
+// reports zero once a tunnel has been stopped, and the runtime counters live
+// only in memory. Tunnels that are not running contribute nothing and keep the
+// totals they already have.
+func drainTraffic(d *db.DB, src trafficSource) error {
+	if src == nil {
+		return nil
+	}
+
+	tunnels, err := d.ListTunnels()
+	if err != nil {
+		return fmt.Errorf("drain traffic: list tunnels: %w", err)
+	}
+
+	var errs []error
+	for _, t := range tunnels {
+		rtIn, rtOut := src.Traffic(t.ID)
+		if rtIn == 0 && rtOut == 0 {
+			continue
+		}
+
+		stored, err := d.GetTraffic(t.ID)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("drain traffic %q: read counters: %w", t.ID, err))
+			continue
+		}
+		if stored == nil {
+			stored = &db.TrafficStats{}
+		}
+		stored.TotalBytesIn += rtIn
+		stored.TotalBytesOut += rtOut
+		if err := d.UpdateTraffic(t.ID, stored); err != nil {
+			errs = append(errs, fmt.Errorf("drain traffic %q: write counters: %w", t.ID, err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // runTrafficSampler periodically records cumulative traffic snapshots for every
