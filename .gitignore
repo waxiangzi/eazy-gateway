@@ -30,3 +30,6 @@ tmp/
 
 # Agent session metadata (plans, evidence, session ids — never belongs in the repo)
 .omo/
+
+# CodeGraph local index (rebuilt per machine — never belongs in the repo)
+.codegraph/
