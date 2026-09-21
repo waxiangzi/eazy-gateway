@@ -383,7 +383,7 @@ onMounted(async () => {
   padding: 1.5rem;
   border-radius: 0.5rem;
   border: 1px solid rgba(var(--accent-rgb), 0.15);
-  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.05), var(--shadow-sm);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
@@ -534,7 +534,7 @@ onMounted(async () => {
   background: rgba(var(--card-rgb), 0.65);
   border-radius: 0.5rem;
   border: 1px solid rgba(var(--accent-rgb), 0.15);
-  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.05), var(--shadow-sm);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }

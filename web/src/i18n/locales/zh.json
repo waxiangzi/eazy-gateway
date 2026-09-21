@@ -6,7 +6,8 @@
     "tunnels": "连接",
     "keys": "密钥",
     "settings": "设置",
-    "logout": "退出登录"
+    "logout": "退出登录",
+    "menu": "菜单"
   },
   "common": {
     "cancel": "取消",

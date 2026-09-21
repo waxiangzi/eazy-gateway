@@ -1,51 +1,57 @@
 :root {
-  /* 色值分量：换肤只需覆盖这些分量 + 下方语义色（见 styles/palettes.css） */
-  --page-rgb: 10, 14, 26;
-  --card-rgb: 16, 24, 48;
-  --card-solid-rgb: 15, 23, 46;
-  --accent-rgb: 56, 189, 248;
-  --accent-strong-rgb: 14, 165, 233;
-  --success-rgb: 52, 211, 153;
-  --success-strong-rgb: 16, 185, 129;
-  --warning-rgb: 251, 191, 36;
-  --error-rgb: 248, 113, 113;
-  --danger-rgb: 239, 68, 68;
-  --slate-rgb: 148, 163, 184;
-  --neutral-rgb: 226, 232, 240;
+  /* 主题 token：换肤只需覆盖「色值分量 + 语义色」这两组，派生变量自动跟随。
+     当前主题：亮色 · 晨雾（浅底、深青强调、柔和投影）。
+     暗色系调色板（深海青 / 石墨·琥珀 / 午夜·靛紫）留在
+     prototype/ui-layouts-palettes 分支的 styles/palettes.css 里备用。 */
+  --page-rgb: 242, 244, 249;
+  --card-rgb: 255, 255, 255;
+  --card-solid-rgb: 255, 255, 255;
+  --accent-rgb: 2, 132, 199;
+  --accent-strong-rgb: 3, 105, 161;
+  --success-rgb: 5, 150, 105;
+  --success-strong-rgb: 4, 120, 87;
+  --warning-rgb: 180, 83, 9;
+  --error-rgb: 220, 38, 38;
+  --danger-rgb: 185, 28, 28;
+  --slate-rgb: 100, 116, 139;
+  --neutral-rgb: 15, 23, 42;
 
   --bg-page: rgb(var(--page-rgb));
-  --bg-card: rgba(var(--card-rgb), 0.65);
-  --bg-card-solid: rgb(var(--card-solid-rgb));
-  --bg-input: rgba(var(--page-rgb), 0.8);
-  --bg-hover: rgba(var(--accent-rgb), 0.08);
-  --bg-active: rgba(var(--accent-rgb), 0.15);
+  --bg-card: rgba(255, 255, 255, 0.92);
+  --bg-card-solid: #ffffff;
+  --bg-input: #ffffff;
+  --bg-hover: rgba(var(--accent-rgb), 0.07);
+  --bg-active: rgba(var(--accent-rgb), 0.12);
 
-  --border-color: rgba(var(--accent-rgb), 0.18);
-  --border-focus: rgba(var(--accent-rgb), 0.55);
+  --border-color: rgba(15, 23, 42, 0.14);
+  --border-focus: rgba(var(--accent-rgb), 0.5);
 
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-soft: #cbd5e1;
-  --text-dark: #0f172a;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #7c8798;
+  --text-soft: #334155;
+  --text-dark: #ffffff;
 
-  --accent: #38bdf8;
-  --accent-fg: #fff;
-  --accent-glow: 0 0 12px rgba(var(--accent-rgb), 0.35);
-  --accent-glow-soft: 0 0 8px rgba(var(--accent-rgb), 0.2);
+  --accent: #0284c7;
+  --accent-fg: #ffffff;
+  --accent-glow: 0 0 0 3px rgba(var(--accent-rgb), 0.18);
+  --accent-glow-soft: 0 1px 2px rgba(15, 23, 42, 0.08);
 
-  --success: #34d399;
-  --success-bg: rgba(var(--success-rgb), 0.12);
-  --warning: #fbbf24;
-  --warning-bg: rgba(var(--warning-rgb), 0.12);
-  --error: #f87171;
-  --error-soft: #fca5a5;
-  --error-bg: rgba(var(--error-rgb), 0.12);
-  --danger: #ef4444;
+  --success: #047857;
+  --success-bg: rgba(var(--success-rgb), 0.1);
+  --warning: #b45309;
+  --warning-bg: rgba(var(--warning-rgb), 0.1);
+  --error: #dc2626;
+  --error-soft: #b91c1c;
+  --error-bg: rgba(var(--error-rgb), 0.1);
+  --danger: #b91c1c;
 
-  --overlay: rgba(0, 0, 0, 0.6);
+  --overlay: rgba(15, 23, 42, 0.35);
   --glass: blur(12px) saturate(140%);
-  --shadow-glow: 0 0 20px rgba(var(--accent-rgb), 0.08), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --title-glow: none;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 2px 6px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.1);
+  --shadow-glow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 8px 24px rgba(15, 23, 42, 0.08);
 
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
@@ -78,7 +84,7 @@ html, body {
 
 .tech-card:hover {
   border-color: rgba(var(--accent-rgb), 0.35);
-  box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.12), 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.12), var(--shadow-md);
 }
 
 /* Primary button */
@@ -155,7 +161,7 @@ html, body {
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: 0.02em;
-  text-shadow: 0 0 12px rgba(var(--accent-rgb), 0.2);
+  text-shadow: var(--title-glow);
 }
 
 /* Status badges */

@@ -67,6 +67,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
+  /* 窄屏下标题与操作按钮换行，避免挤压重叠 */
+  flex-wrap: wrap;
   margin-bottom: 1.5rem;
 }
 
@@ -116,7 +119,7 @@ h1 {
   background: rgba(var(--card-rgb), 0.65);
   border-radius: 0.5rem;
   border: 1px solid rgba(var(--accent-rgb), 0.15);
-  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.05), var(--shadow-sm);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
@@ -141,7 +144,7 @@ h1 {
   background: rgba(var(--card-rgb), 0.65);
   border-radius: 0.5rem;
   border: 1px solid rgba(var(--accent-rgb), 0.15);
-  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.05), var(--shadow-sm);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -149,7 +152,7 @@ h1 {
 
 .host-card:hover {
   border-color: rgba(var(--accent-rgb), 0.3);
-  box-shadow: 0 0 18px rgba(var(--accent-rgb), 0.1), 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 18px rgba(var(--accent-rgb), 0.1), var(--shadow-md);
 }
 
 .host-info {
@@ -220,5 +223,11 @@ h1 {
 .btn-delete:hover {
   background: linear-gradient(135deg, rgba(var(--error-rgb),1), rgba(var(--danger-rgb),1));
   box-shadow: 0 0 12px rgba(var(--error-rgb), 0.25);
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 1.25rem;
+  }
 }
 </style>

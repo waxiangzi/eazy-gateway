@@ -6,7 +6,8 @@
     "tunnels": "Connections",
     "keys": "Keys",
     "settings": "Settings",
-    "logout": "Logout"
+    "logout": "Logout",
+    "menu": "Menu"
   },
   "common": {
     "cancel": "Cancel",

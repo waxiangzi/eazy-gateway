@@ -66,7 +66,7 @@ async function handleSubmit() {
   background: rgba(var(--card-rgb), 0.65);
   border-radius: 0.75rem;
   border: 1px solid rgba(var(--accent-rgb), 0.18);
-  box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.08), 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.08), var(--shadow-md);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
 }
