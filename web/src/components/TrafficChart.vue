@@ -37,6 +37,16 @@ function buildData() {
   ]
 }
 
+// uPlot 用 canvas 绘制，不认 CSS 变量，需把 token 解析成具体色值
+function token(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v || fallback
+}
+function alphaToken(name, alpha, fallback) {
+  const rgb = token(name, '')
+  return rgb ? `rgba(${rgb}, ${alpha})` : fallback
+}
+
 function initChart() {
   if (!chartRef.value || !hasData.value) return
   if (chart) {
@@ -57,29 +67,29 @@ function initChart() {
       {
         space: 60,
         values: [[3600, '{HH}:{mm}']],
-        stroke: '#94a3b8',
-        grid: { stroke: 'rgba(148,163,184,0.12)', width: 1 },
-        ticks: { stroke: 'rgba(148,163,184,0.2)', width: 1, size: 4 },
+        stroke: token('--text-secondary', '#94a3b8'),
+        grid: { stroke: alphaToken('--slate-rgb', 0.12, 'rgba(148,163,184,0.12)'), width: 1 },
+        ticks: { stroke: alphaToken('--slate-rgb', 0.2, 'rgba(148,163,184,0.2)'), width: 1, size: 4 },
       },
       {
         size: 60,
         values: (u, vals) => vals.map((v) => formatBytes(v)),
-        stroke: '#94a3b8',
-        grid: { stroke: 'rgba(148,163,184,0.12)', width: 1 },
-        ticks: { stroke: 'rgba(148,163,184,0.2)', width: 1, size: 4 },
+        stroke: token('--text-secondary', '#94a3b8'),
+        grid: { stroke: alphaToken('--slate-rgb', 0.12, 'rgba(148,163,184,0.12)'), width: 1 },
+        ticks: { stroke: alphaToken('--slate-rgb', 0.2, 'rgba(148,163,184,0.2)'), width: 1, size: 4 },
       },
     ],
       series: [
       { label: '', value: '{HH}:{mm}' },
       {
         label: t('tunnel.traffic.in'),
-        stroke: '#38bdf8',
-        fill: 'rgba(56,189,248,0.15)',
+        stroke: token('--accent', '#38bdf8'),
+        fill: alphaToken('--accent-rgb', 0.15, 'rgba(56,189,248,0.15)'),
       },
       {
         label: t('tunnel.traffic.out'),
-        stroke: '#34d399',
-        fill: 'rgba(52,211,153,0.15)',
+        stroke: token('--success', '#34d399'),
+        fill: alphaToken('--success-rgb', 0.15, 'rgba(52,211,153,0.15)'),
       },
     ],
   }
@@ -105,15 +115,24 @@ watch(() => props.points, refreshChart, { deep: true })
 onMounted(() => {
   initChart()
   window.addEventListener('resize', handleResize)
+  // 原型换肤：canvas 颜色不会随 CSS 变量自动更新，需重建图表
+  window.addEventListener('palette-change', onPaletteChange)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('palette-change', onPaletteChange)
   if (chart) {
     chart.destroy()
     chart = null
   }
 })
+
+function onPaletteChange() {
+  if (hasData.value) {
+    initChart()
+  }
+}
 
 function handleResize() {
   if (chart && chartRef.value) {
@@ -132,7 +151,7 @@ function handleResize() {
 .traffic-chart-empty {
   padding: 1rem;
   text-align: center;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 0.875rem;
 }
 </style>

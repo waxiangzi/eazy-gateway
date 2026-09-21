@@ -62,10 +62,10 @@ async function handleLogout() {
   justify-content: space-between;
   padding: 0 1.5rem;
   height: 3.5rem;
-  background: rgba(10, 14, 26, 0.85);
-  color: #e2e8f0;
-  border-bottom: 1px solid rgba(56, 189, 248, 0.15);
-  box-shadow: 0 0 20px rgba(56, 189, 248, 0.08), 0 4px 12px rgba(0, 0, 0, 0.4);
+  background: rgba(var(--page-rgb), 0.85);
+  color: var(--text-primary);
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.15);
+  box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.08), 0 4px 12px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
 }
@@ -74,8 +74,8 @@ async function handleLogout() {
   font-weight: 700;
   font-size: 1.125rem;
   letter-spacing: 0.04em;
-  color: #38bdf8;
-  text-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+  color: var(--accent);
+  text-shadow: 0 0 12px rgba(var(--accent-rgb), 0.35);
 }
 
 .nav-links {
@@ -87,7 +87,7 @@ async function handleLogout() {
 .nav-link {
   padding: 0.5rem 0.75rem;
   border-radius: 0.375rem;
-  color: #94a3b8;
+  color: var(--text-secondary);
   text-decoration: none;
   font-size: 0.875rem;
   transition: all 0.2s;
@@ -98,27 +98,27 @@ async function handleLogout() {
 
 .nav-link:hover,
 .nav-link.router-link-active {
-  background: rgba(56, 189, 248, 0.1);
-  color: #38bdf8;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.1);
+  background: rgba(var(--accent-rgb), 0.1);
+  color: var(--accent);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.1);
 }
 
 .nav-link.logout {
   margin-left: 0.5rem;
-  color: #f87171;
+  color: var(--error);
 }
 
 .nav-link.logout:hover {
-  background: rgba(248, 113, 113, 0.1);
-  color: #fca5a5;
-  box-shadow: 0 0 8px rgba(248, 113, 113, 0.1);
+  background: rgba(var(--error-rgb), 0.1);
+  color: var(--error-soft);
+  box-shadow: 0 0 8px rgba(var(--error-rgb), 0.1);
 }
 
 .locale-select {
   appearance: none;
-  background: rgba(10, 14, 26, 0.8);
-  color: #e2e8f0;
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  background: rgba(var(--page-rgb), 0.8);
+  color: var(--text-primary);
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
   border-radius: 0.375rem;
   padding: 0.375rem 1.5rem 0.375rem 0.75rem;
   font-size: 0.875rem;
@@ -129,13 +129,13 @@ async function handleLogout() {
 }
 
 .locale-select:focus {
-  border-color: rgba(56, 189, 248, 0.5);
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.15);
+  border-color: rgba(var(--accent-rgb), 0.5);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.15);
 }
 
 .main-content {
   flex: 1;
   padding: 1.5rem;
-  background: #0a0e1a;
+  background: var(--bg-page);
 }
 </style>

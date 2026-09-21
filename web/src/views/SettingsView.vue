@@ -286,9 +286,9 @@ async function handleTrendHoursChange() {
   margin: 0 0 1.5rem;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #e2e8f0;
+  color: var(--text-primary);
   letter-spacing: 0.02em;
-  text-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+  text-shadow: 0 0 12px rgba(var(--accent-rgb), 0.2);
 }
 
 .section-heading {
@@ -296,22 +296,22 @@ async function handleTrendHoursChange() {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #64748b;
+  color: var(--text-muted);
   margin: 0 0 1rem;
 }
 
 .section-divider {
   border: none;
-  border-top: 1px solid rgba(56, 189, 248, 0.1);
+  border-top: 1px solid rgba(var(--accent-rgb), 0.1);
   margin: 2rem 0;
 }
 
 /* 系统配置：轻量行内编辑 */
 .inline-settings-card {
-  background: rgba(16, 24, 48, 0.65);
+  background: rgba(var(--card-rgb), 0.65);
   border-radius: 0.5rem;
-  border: 1px solid rgba(56, 189, 248, 0.15);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(var(--accent-rgb), 0.15);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   padding: 1rem 1.25rem;
@@ -326,13 +326,13 @@ async function handleTrendHoursChange() {
 }
 
 .inline-setting + .inline-setting {
-  border-top: 1px solid rgba(56, 189, 248, 0.08);
+  border-top: 1px solid rgba(var(--accent-rgb), 0.08);
 }
 
 .inline-setting label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #94a3b8;
+  color: var(--text-secondary);
   width: 7rem;
   flex-shrink: 0;
   padding-top: 0.5rem;
@@ -352,11 +352,11 @@ async function handleTrendHoursChange() {
   flex: 1;
   min-width: 0;
   padding: 0.5rem 0.75rem;
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
   border-radius: 0.375rem;
   font-size: 1rem;
-  color: #e2e8f0;
-  background: rgba(10, 14, 26, 0.8);
+  color: var(--text-primary);
+  background: rgba(var(--page-rgb), 0.8);
   box-sizing: border-box;
   font-family: inherit;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -366,8 +366,8 @@ async function handleTrendHoursChange() {
 .inline-field input:focus,
 .inline-field select:focus {
   outline: none;
-  border-color: rgba(56, 189, 248, 0.55);
-  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15), 0 0 8px rgba(56, 189, 248, 0.2);
+  border-color: rgba(var(--accent-rgb), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15), 0 0 8px rgba(var(--accent-rgb), 0.2);
 }
 
 .inline-field select {
@@ -382,7 +382,7 @@ async function handleTrendHoursChange() {
 .version-value {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 1rem;
-  color: #cbd5e1;
+  color: var(--text-soft);
 }
 
 .save-hint {
@@ -392,28 +392,28 @@ async function handleTrendHoursChange() {
 }
 
 .save-hint.saving {
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 .save-hint.saved {
-  color: #34d399;
+  color: var(--success);
 }
 
 .save-hint.error {
-  color: #f87171;
+  color: var(--error);
 }
 
 /* 安全设置：完整表单 */
 .settings-form {
   max-width: 28rem;
   padding: 1.5rem;
-  background: rgba(16, 24, 48, 0.65);
+  background: rgba(var(--card-rgb), 0.65);
   border-radius: 0.5rem;
-  border: 1px solid rgba(251, 191, 36, 0.2);
-  box-shadow: 0 0 12px rgba(251, 191, 36, 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(var(--warning-rgb), 0.2);
+  box-shadow: 0 0 12px rgba(var(--warning-rgb), 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border-left: 4px solid rgba(251, 191, 36, 0.5);
+  border-left: 4px solid rgba(var(--warning-rgb), 0.5);
 }
 
 .form-group {
@@ -425,17 +425,17 @@ async function handleTrendHoursChange() {
   margin-bottom: 0.25rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 .form-group input {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
   border-radius: 0.375rem;
   font-size: 1rem;
-  color: #e2e8f0;
-  background: rgba(10, 14, 26, 0.8);
+  color: var(--text-primary);
+  background: rgba(var(--page-rgb), 0.8);
   box-sizing: border-box;
   font-family: inherit;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -443,26 +443,26 @@ async function handleTrendHoursChange() {
 
 .form-group input:focus {
   outline: none;
-  border-color: rgba(251, 191, 36, 0.55);
-  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12), 0 0 8px rgba(251, 191, 36, 0.15);
+  border-color: rgba(var(--warning-rgb), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--warning-rgb), 0.12), 0 0 8px rgba(var(--warning-rgb), 0.15);
 }
 
 .field-error {
   margin: 0.25rem 0 0;
-  color: #f87171;
+  color: var(--error);
   font-size: 0.875rem;
 }
 
 .error-message {
   margin: 0 0 1rem;
-  color: #f87171;
+  color: var(--error);
   font-size: 0.875rem;
   text-align: center;
 }
 
 .success-message {
   margin: 0 0 1rem;
-  color: #34d399;
+  color: var(--success);
   font-size: 0.875rem;
   text-align: center;
 }
@@ -472,19 +472,19 @@ async function handleTrendHoursChange() {
   padding: 0.625rem;
   border: none;
   border-radius: 0.375rem;
-  background: linear-gradient(135deg, rgba(56,189,248,0.9), rgba(14,165,233,0.9));
-  color: #fff;
+  background: linear-gradient(135deg, rgba(var(--accent-rgb),0.9), rgba(var(--accent-strong-rgb),0.9));
+  color: var(--accent-fg);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.15);
 }
 
 .submit-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(56,189,248,1), rgba(14,165,233,1));
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+  background: linear-gradient(135deg, rgba(var(--accent-rgb),1), rgba(var(--accent-strong-rgb),1));
+  box-shadow: 0 0 16px rgba(var(--accent-rgb), 0.3);
   transform: translateY(-1px);
 }
 

@@ -114,9 +114,9 @@ onMounted(() => {
   margin: 0 0 1.5rem;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #e2e8f0;
+  color: var(--text-primary);
   letter-spacing: 0.02em;
-  text-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+  text-shadow: 0 0 12px rgba(var(--accent-rgb), 0.2);
 }
 
 .list-section {
@@ -130,12 +130,12 @@ onMounted(() => {
   margin: 0 0 1rem;
   font-size: 1.125rem;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--text-primary);
 }
 
 .error-message {
   margin: 0;
-  color: #f87171;
+  color: var(--error);
   font-size: 0.875rem;
 }
 
@@ -145,17 +145,17 @@ onMounted(() => {
 
 .loading-text {
   padding: 1rem 0;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 0.9375rem;
 }
 
 .empty-state {
   padding: 2rem;
   text-align: center;
-  color: #94a3b8;
-  background: rgba(16, 24, 48, 0.5);
+  color: var(--text-secondary);
+  background: rgba(var(--card-rgb), 0.5);
   border-radius: 0.5rem;
-  border: 1px dashed rgba(56, 189, 248, 0.2);
+  border: 1px dashed rgba(var(--accent-rgb), 0.2);
 }
 
 .empty-state p {
@@ -163,9 +163,9 @@ onMounted(() => {
 }
 
 .empty-state.error {
-  background: rgba(248, 113, 113, 0.08);
-  border-color: rgba(248, 113, 113, 0.25);
-  color: #f87171;
+  background: rgba(var(--error-rgb), 0.08);
+  border-color: rgba(var(--error-rgb), 0.25);
+  color: var(--error);
 }
 
 .key-list {
@@ -179,18 +179,18 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.25rem;
-  background: rgba(16, 24, 48, 0.65);
+  background: rgba(var(--card-rgb), 0.65);
   border-radius: 0.5rem;
-  border: 1px solid rgba(56, 189, 248, 0.15);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(var(--accent-rgb), 0.15);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .key-card:hover {
-  border-color: rgba(56, 189, 248, 0.3);
-  box-shadow: 0 0 18px rgba(56, 189, 248, 0.1), 0 4px 12px rgba(0, 0, 0, 0.4);
+  border-color: rgba(var(--accent-rgb), 0.3);
+  box-shadow: 0 0 18px rgba(var(--accent-rgb), 0.1), 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .key-info {
@@ -202,13 +202,13 @@ onMounted(() => {
 
 .key-name {
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--text-primary);
   font-size: 0.9375rem;
 }
 
 .key-public {
   font-size: 0.8125rem;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   white-space: nowrap;
   overflow: hidden;
@@ -217,7 +217,7 @@ onMounted(() => {
 
 .key-date {
   font-size: 0.8125rem;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .key-actions {
@@ -229,10 +229,10 @@ onMounted(() => {
 
 .btn-copy {
   padding: 0.375rem 0.75rem;
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
   border-radius: 0.375rem;
-  background: rgba(10, 14, 26, 0.6);
-  color: #94a3b8;
+  background: rgba(var(--page-rgb), 0.6);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -241,17 +241,17 @@ onMounted(() => {
 }
 
 .btn-copy:hover {
-  background: rgba(56, 189, 248, 0.15);
-  border-color: rgba(56, 189, 248, 0.4);
-  color: #38bdf8;
+  background: rgba(var(--accent-rgb), 0.15);
+  border-color: rgba(var(--accent-rgb), 0.4);
+  color: var(--accent);
 }
 
 .btn-danger {
   padding: 0.375rem 0.75rem;
-  border: 1px solid rgba(248, 113, 113, 0.25);
+  border: 1px solid rgba(var(--error-rgb), 0.25);
   border-radius: 0.375rem;
-  background: rgba(248, 113, 113, 0.08);
-  color: #f87171;
+  background: rgba(var(--error-rgb), 0.08);
+  color: var(--error);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -260,9 +260,9 @@ onMounted(() => {
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: rgba(248, 113, 113, 0.15);
-  border-color: rgba(248, 113, 113, 0.4);
-  box-shadow: 0 0 8px rgba(248, 113, 113, 0.15);
+  background: rgba(var(--error-rgb), 0.15);
+  border-color: rgba(var(--error-rgb), 0.4);
+  box-shadow: 0 0 8px rgba(var(--error-rgb), 0.15);
 }
 
 .btn-danger:disabled {

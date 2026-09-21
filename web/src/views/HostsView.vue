@@ -74,56 +74,56 @@ h1 {
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #e2e8f0;
+  color: var(--text-primary);
   letter-spacing: 0.02em;
-  text-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+  text-shadow: 0 0 12px rgba(var(--accent-rgb), 0.2);
 }
 
 .btn-primary {
   display: inline-block;
   padding: 0.5rem 1rem;
-  background: linear-gradient(135deg, rgba(56,189,248,0.9), rgba(14,165,233,0.9));
-  color: #fff;
+  background: linear-gradient(135deg, rgba(var(--accent-rgb),0.9), rgba(var(--accent-strong-rgb),0.9));
+  color: var(--accent-fg);
   text-decoration: none;
   border-radius: 0.375rem;
   font-size: 0.875rem;
   font-weight: 600;
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.15);
   transition: all 0.2s;
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, rgba(56,189,248,1), rgba(14,165,233,1));
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+  background: linear-gradient(135deg, rgba(var(--accent-rgb),1), rgba(var(--accent-strong-rgb),1));
+  box-shadow: 0 0 16px rgba(var(--accent-rgb), 0.3);
   transform: translateY(-1px);
 }
 
 .state-message {
   padding: 2rem;
   text-align: center;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 1rem;
 }
 
 .state-message.error {
-  color: #f87171;
+  color: var(--error);
 }
 
 .empty-state {
   text-align: center;
   padding: 4rem 2rem;
-  background: rgba(16, 24, 48, 0.65);
+  background: rgba(var(--card-rgb), 0.65);
   border-radius: 0.5rem;
-  border: 1px solid rgba(56, 189, 248, 0.15);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(var(--accent-rgb), 0.15);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
 .empty-state p {
   margin: 0 0 1.5rem;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 1rem;
 }
 
@@ -138,18 +138,18 @@ h1 {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.25rem;
-  background: rgba(16, 24, 48, 0.65);
+  background: rgba(var(--card-rgb), 0.65);
   border-radius: 0.5rem;
-  border: 1px solid rgba(56, 189, 248, 0.15);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(var(--accent-rgb), 0.15);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.05), 0 4px 8px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .host-card:hover {
-  border-color: rgba(56, 189, 248, 0.3);
-  box-shadow: 0 0 18px rgba(56, 189, 248, 0.1), 0 4px 12px rgba(0, 0, 0, 0.4);
+  border-color: rgba(var(--accent-rgb), 0.3);
+  box-shadow: 0 0 18px rgba(var(--accent-rgb), 0.1), 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .host-info {
@@ -170,12 +170,12 @@ h1 {
 .host-name {
   font-weight: 600;
   font-size: 1rem;
-  color: #e2e8f0;
+  color: var(--text-primary);
 }
 
 .host-address {
   font-size: 0.875rem;
-  color: #38bdf8;
+  color: var(--accent);
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 }
 
@@ -199,26 +199,26 @@ h1 {
 }
 
 .btn-edit {
-  background: rgba(226, 232, 240, 0.1);
-  color: #e2e8f0;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(var(--neutral-rgb), 0.1);
+  color: var(--text-primary);
+  border: 1px solid rgba(var(--slate-rgb), 0.2);
 }
 
 .btn-edit:hover {
-  background: rgba(56, 189, 248, 0.15);
-  border-color: rgba(56, 189, 248, 0.35);
-  color: #38bdf8;
+  background: rgba(var(--accent-rgb), 0.15);
+  border-color: rgba(var(--accent-rgb), 0.35);
+  color: var(--accent);
 }
 
 .btn-delete {
-  background: linear-gradient(135deg, rgba(248,113,113,0.85), rgba(239,68,68,0.85));
-  color: #fff;
-  border: 1px solid rgba(248, 113, 113, 0.3);
-  box-shadow: 0 0 6px rgba(248, 113, 113, 0.15);
+  background: linear-gradient(135deg, rgba(var(--error-rgb),0.85), rgba(var(--danger-rgb),0.85));
+  color: var(--accent-fg);
+  border: 1px solid rgba(var(--error-rgb), 0.3);
+  box-shadow: 0 0 6px rgba(var(--error-rgb), 0.15);
 }
 
 .btn-delete:hover {
-  background: linear-gradient(135deg, rgba(248,113,113,1), rgba(239,68,68,1));
-  box-shadow: 0 0 12px rgba(248, 113, 113, 0.25);
+  background: linear-gradient(135deg, rgba(var(--error-rgb),1), rgba(var(--danger-rgb),1));
+  box-shadow: 0 0 12px rgba(var(--error-rgb), 0.25);
 }
 </style>

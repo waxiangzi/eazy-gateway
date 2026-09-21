@@ -44,25 +44,25 @@ function toggle() {
   font-size: 0.6875rem;
   text-align: center;
   border-radius: 50%;
-  background: rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
+  background: rgba(var(--accent-rgb), 0.2);
+  color: var(--accent);
   cursor: help;
   vertical-align: middle;
   margin-left: 0.25rem;
   outline: none;
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
 }
 
 .tooltip-icon:focus {
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.4);
 }
 
 .tooltip-text {
   visibility: hidden;
   width: max-content;
   max-width: 20rem;
-  background: rgba(10, 14, 26, 0.95);
-  color: #e2e8f0;
+  background: rgba(var(--page-rgb), 0.95);
+  color: var(--text-primary);
   text-align: left;
   border-radius: 0.375rem;
   padding: 0.5rem 0.75rem;
@@ -78,8 +78,8 @@ function toggle() {
   transition: opacity 0.2s;
   font-weight: normal;
   pointer-events: none;
-  border: 1px solid rgba(56, 189, 248, 0.2);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.1);
 }
 
 .tooltip-icon:hover .tooltip-text,
