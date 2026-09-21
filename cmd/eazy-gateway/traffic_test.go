@@ -1,20 +1,27 @@
 package main
 
 import (
+	"context"
+	"io"
+	"log/slog"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/eazy-gateway/eazy-gateway/internal/db"
+	"github.com/eazy-gateway/eazy-gateway/internal/ssh"
 )
 
 // stubTrafficSource stands in for the SSH engine: live byte counters can only be
 // produced by a real forwarding connection, and drainTraffic reads them through
 // this one seam.
-type stubTrafficSource map[string][2]uint64
+type stubTrafficSource map[string]trafficCounters
+
+type trafficCounters struct{ in, out uint64 }
 
 func (s stubTrafficSource) Traffic(tunnelID string) (uint64, uint64) {
 	counters := s[tunnelID]
-	return counters[0], counters[1]
+	return counters.in, counters.out
 }
 
 func newTrafficTestDB(t *testing.T) *db.DB {
@@ -45,11 +52,11 @@ func TestDrainTrafficFoldsRuntimeCountersIntoPersistedTotals(t *testing.T) {
 	d := newTrafficTestDB(t)
 	id := seedTunnel(t, d)
 
-	if err := d.UpdateTraffic(id, &db.TrafficStats{TotalBytesIn: 500, TotalBytesOut: 700}); err != nil {
+	if err := d.AddTraffic(id, 500, 700); err != nil {
 		t.Fatalf("seed traffic: %v", err)
 	}
 
-	if err := drainTraffic(d, stubTrafficSource{id: {1024, 2048}}); err != nil {
+	if err := drainTraffic(d, stubTrafficSource{id: {in: 1024, out: 2048}}); err != nil {
 		t.Fatalf("drainTraffic: %v", err)
 	}
 
@@ -78,7 +85,7 @@ func TestDrainTrafficLeavesStoppedTunnelsUntouched(t *testing.T) {
 		t.Errorf("idle tunnel gained a traffic record: %+v", got)
 	}
 
-	if err := d.UpdateTraffic(id, &db.TrafficStats{TotalBytesIn: 100, TotalBytesOut: 200}); err != nil {
+	if err := d.AddTraffic(id, 100, 200); err != nil {
 		t.Fatalf("seed traffic: %v", err)
 	}
 	if err := drainTraffic(d, stubTrafficSource{}); err != nil {
@@ -90,5 +97,31 @@ func TestDrainTrafficLeavesStoppedTunnelsUntouched(t *testing.T) {
 	}
 	if got.TotalBytesIn != 100 || got.TotalBytesOut != 200 {
 		t.Errorf("traffic = %d/%d, want 100/200", got.TotalBytesIn, got.TotalBytesOut)
+	}
+}
+
+// Shutdown stops the sampler and waits for it before draining, because the
+// sampler folds the same runtime counters into its samples. A sampler that
+// ignored its context would stall every stop until the shutdown timeout.
+func TestRunTrafficSamplerReturnsWhenContextIsCancelled(t *testing.T) {
+	d := newTrafficTestDB(t)
+	engine := ssh.NewTunnelEngine()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		runTrafficSampler(ctx, d, engine, logger)
+	}()
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("runTrafficSampler did not return after its context was cancelled")
 	}
 }

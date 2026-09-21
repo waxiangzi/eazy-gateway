@@ -44,11 +44,24 @@ func (db *DB) GetTraffic(tunnelID string) (*TrafficStats, error) {
 	return stats, err
 }
 
-// UpdateTraffic persists traffic stats for a tunnel.
-func (db *DB) UpdateTraffic(tunnelID string, stats *TrafficStats) error {
+// AddTraffic adds byte counters produced while a tunnel was running to its
+// persisted totals, creating the record when the tunnel has none yet. The
+// read-modify-write happens inside one transaction, so concurrent callers
+// cannot lose each other's bytes.
+func (db *DB) AddTraffic(tunnelID string, bytesIn, bytesOut uint64) error {
 	return db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucketTraffic)
-		data, err := json.Marshal(stats)
+
+		var stats TrafficStats
+		if data := b.Get([]byte(tunnelID)); data != nil {
+			if err := json.Unmarshal(data, &stats); err != nil {
+				return fmt.Errorf("unmarshal traffic %q: %w", tunnelID, err)
+			}
+		}
+		stats.TotalBytesIn += bytesIn
+		stats.TotalBytesOut += bytesOut
+
+		data, err := json.Marshal(&stats)
 		if err != nil {
 			return fmt.Errorf("marshal traffic %q: %w", tunnelID, err)
 		}

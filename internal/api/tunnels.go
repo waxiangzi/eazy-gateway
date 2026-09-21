@@ -472,13 +472,7 @@ func (h *TunnelHandler) Delete(w http.ResponseWriter, r *http.Request) {
 				// Continue with deletion even if stop fails
 			}
 			h.engine.Deregister(id)
-			stored, _ := h.db.GetTraffic(id)
-			if stored == nil {
-				stored = &db.TrafficStats{}
-			}
-			stored.TotalBytesIn += rtIn
-			stored.TotalBytesOut += rtOut
-			_ = h.db.UpdateTraffic(id, stored)
+			_ = h.db.AddTraffic(id, rtIn, rtOut)
 		}
 	}
 
@@ -619,13 +613,7 @@ func (h *TunnelHandler) Stop(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	stored, _ := h.db.GetTraffic(id)
-	if stored == nil {
-		stored = &db.TrafficStats{}
-	}
-	stored.TotalBytesIn += rtIn
-	stored.TotalBytesOut += rtOut
-	_ = h.db.UpdateTraffic(id, stored)
+	_ = h.db.AddTraffic(id, rtIn, rtOut)
 
 	tc.Enabled = false
 	if err := h.db.UpdateTunnel(tc); err != nil {

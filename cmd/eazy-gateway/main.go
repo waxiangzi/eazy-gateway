@@ -251,8 +251,17 @@ func runServer(port int, dataDir string, secureCookies bool) {
 	// Restore tunnels that were enabled before last shutdown
 	go tunnelsHandler.RestoreEnabled()
 
-	// Background traffic sampler records cumulative counters every minute.
-	go runTrafficSampler(d, engine, logger)
+	// Background traffic sampler records cumulative counters every minute. Its
+	// context is cancelled during shutdown before the counters are drained: both
+	// read the same runtime counters, and a tick landing in between would fold the
+	// drained bytes into a sample a second time.
+	samplerCtx, stopSampler := context.WithCancel(context.Background())
+	var samplerDone sync.WaitGroup
+	samplerDone.Add(1)
+	go func() {
+		defer samplerDone.Done()
+		runTrafficSampler(samplerCtx, d, engine, logger)
+	}()
 
 	mux := http.NewServeMux()
 	var unlockOnce sync.Once
@@ -359,6 +368,11 @@ func runServer(port int, dataDir string, secureCookies bool) {
 			}
 
 			_ = os.Remove(socketPath)
+
+			// The sampler reads the same runtime counters that drainTraffic folds
+			// in, so it must stop before the drain rather than record them again.
+			stopSampler()
+			samplerDone.Wait()
 
 			// The engine holds runtime byte counters in memory only, and Stop
 			// resets them, so fold them into the persisted totals before the
@@ -848,10 +862,6 @@ var _ trafficSource = (*ssh.TunnelEngine)(nil)
 // only in memory. Tunnels that are not running contribute nothing and keep the
 // totals they already have.
 func drainTraffic(d *db.DB, src trafficSource) error {
-	if src == nil {
-		return nil
-	}
-
 	tunnels, err := d.ListTunnels()
 	if err != nil {
 		return fmt.Errorf("drain traffic: list tunnels: %w", err)
@@ -863,19 +873,8 @@ func drainTraffic(d *db.DB, src trafficSource) error {
 		if rtIn == 0 && rtOut == 0 {
 			continue
 		}
-
-		stored, err := d.GetTraffic(t.ID)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("drain traffic %q: read counters: %w", t.ID, err))
-			continue
-		}
-		if stored == nil {
-			stored = &db.TrafficStats{}
-		}
-		stored.TotalBytesIn += rtIn
-		stored.TotalBytesOut += rtOut
-		if err := d.UpdateTraffic(t.ID, stored); err != nil {
-			errs = append(errs, fmt.Errorf("drain traffic %q: write counters: %w", t.ID, err))
+		if err := d.AddTraffic(t.ID, rtIn, rtOut); err != nil {
+			errs = append(errs, fmt.Errorf("drain traffic %q: %w", t.ID, err))
 		}
 	}
 	return errors.Join(errs...)
@@ -883,12 +882,18 @@ func drainTraffic(d *db.DB, src trafficSource) error {
 
 // runTrafficSampler periodically records cumulative traffic snapshots for every
 // configured tunnel and prunes samples older than the configured retention window.
-func runTrafficSampler(d *db.DB, engine *ssh.TunnelEngine, logger *slog.Logger) {
+// It returns once ctx is cancelled.
+func runTrafficSampler(ctx context.Context, d *db.DB, engine *ssh.TunnelEngine, logger *slog.Logger) {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	for {
-		<-ticker.C
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
 		tunnels, err := d.ListTunnels()
 		if err != nil {
 			logger.Error("traffic sampler: list tunnels", "error", err)
